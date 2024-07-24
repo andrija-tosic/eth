@@ -8,8 +8,11 @@ contract AuctionFactory {
     function createAuction(uint biddingTime) public returns (Auction) {
         Auction newAuction = (new Auction(biddingTime, payable(msg.sender)));
         auctions.push(newAuction);
+        emit AuctionCreated(newAuction);
         return newAuction;
     }
+
+    event AuctionCreated(Auction auction);
 
     function getActiveAuctions() public view returns (Auction[] memory) {
         uint count = 0;
@@ -34,7 +37,7 @@ contract AuctionFactory {
     function getFinishedAuctions() public view returns (Auction[] memory) {
         uint count = 0;
         for (uint i = 0; i < auctions.length; i++) {
-            if (!auctions[i].ended()) {
+            if (auctions[i].ended()) {
                 count++;
             }
         }
@@ -43,7 +46,7 @@ contract AuctionFactory {
 
         uint j = 0;
         for (uint i = 0; i < auctions.length; i++) {
-            if (!auctions[i].ended()) {
+            if (auctions[i].ended()) {
                 finished[j++] = auctions[i];
             }
         }

@@ -6,6 +6,19 @@
 	"output": {
 		"abi": [
 			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": false,
+						"internalType": "contract Auction",
+						"name": "auction",
+						"type": "address"
+					}
+				],
+				"name": "AuctionCreated",
+				"type": "event"
+			},
+			{
 				"inputs": [
 					{
 						"internalType": "uint256",
@@ -117,19 +130,19 @@
 	},
 	"sources": {
 		"auction-factory.sol": {
-			"keccak256": "0x07fa1800c4da1790b31735f670c075efb6bc66f63cea870c4e5c9455b4e73845",
+			"keccak256": "0x49aa40d05a6dc6245c7688c4ba0f6bb929d6c72c02c3c854bfff1ed7b3272d09",
 			"license": "GPL-3.0",
 			"urls": [
-				"bzz-raw://33fbf3c6f488336cbf142a25e56d52815696140edd55372f0f52c5ebe5b6c8e5",
-				"dweb:/ipfs/QmV9FewGiFDsMwxaZjzkBvPoM54bz4CgXHV1Fq9GtWqBTr"
+				"bzz-raw://8a09934fa164cf04897dab481672d16b4746f38c94cc64928b23bff3451528c1",
+				"dweb:/ipfs/QmTwFrqGFZF7X1zWP5CHwNGo2wyzsSwsKPGPJAHteUuEAh"
 			]
 		},
 		"auction.sol": {
-			"keccak256": "0x559851c77c2e94f77b975af8a7906abe1d7f7ffb597a6e41e165d47df25044bf",
+			"keccak256": "0xfd3c5998c02e0bfe5ec20ebcfdf4aacd80194f131ed1a4dd8b4a4c0b7b8a1a1f",
 			"license": "GPL-3.0",
 			"urls": [
-				"bzz-raw://f01d476b7162f1ce0655c7eb193b52fce8eff78386c1688b579b2bbf7095cdd7",
-				"dweb:/ipfs/Qmf5M1UW8oXk9VgFS8yCCCtuxaZi6sesFdHu4znZCU7Brk"
+				"bzz-raw://b9bab5ea2574edba892a3f8ccac70a90192b6147017b45d2b111038724b5cd97",
+				"dweb:/ipfs/QmRKv1HB6FMVY7bybNhMiBxfN7r7rXskWVwDixZ716U7oA"
 			]
 		}
 	},

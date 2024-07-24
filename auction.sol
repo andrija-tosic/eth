@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.4;
 contract Auction {
-    // Parameters of the auction. Times are either
+    // Times are either
     // absolute unix timestamps (seconds since 1970-01-01)
     // or time periods in seconds.
     address payable public beneficiary;
@@ -10,40 +10,22 @@ contract Auction {
     address[] public raters;
     uint public auctionEndTime;
 
-    // Current state of the auction.
     address public highestBidder;
     uint public highestBid;
 
     // Allowed withdrawals of previous bids
     mapping(address => uint) pendingReturns;
 
-    // Set to true at the end, disallows any change.
-    // By default initialized to `false`.
     bool public ended;
 
-    // Events that will be emitted on changes.
     event HighestBidIncreased(address bidder, uint amount);
     event AuctionEnded(address winner, uint amount);
 
-    // Errors that describe failures.
-
-    // The triple-slash comments are so-called natspec
-    // comments. They will be shown when the user
-    // is asked to confirm a transaction or
-    // when an error is displayed.
-
-    /// The auction has already ended.
     error AuctionAlreadyEnded();
-    /// There is already a higher or equal bid.
     error BidNotHighEnough(uint highestBid);
-    /// The auction has not ended yet.
     error AuctionNotYetEnded();
-    /// The function auctionEnd has already been called.
     error AuctionEndAlreadyCalled();
 
-    /// Create a simple auction with `biddingTime`
-    /// seconds bidding time on behalf of the
-    /// beneficiary address `beneficiaryAddress`.
     constructor(
         uint biddingTime,
         address payable beneficiaryAddress
@@ -52,44 +34,24 @@ contract Auction {
         auctionEndTime = block.timestamp + biddingTime;
     }
 
-    /// Bid on the auction with the value sent
-    /// together with this transaction.
-    /// The value will only be refunded if the
-    /// auction is not won.
     function bid() external payable {
-        // No arguments are necessary, all
-        // information is already part of
-        // the transaction. The keyword payable
-        // is required for the function to
-        // be able to receive Ether.
-
-        // Revert the call if the bidding
-        // period is over.
         if (block.timestamp > auctionEndTime)
             revert AuctionAlreadyEnded();
 
-        // If the bid is not higher, send the
-        // Ether back (the revert statement
-        // will revert all changes in this
-        // function execution including
-        // it having received the Ether).
+        require(msg.sender != beneficiary, "Beneficiary can't bid on their own auction.");
+        
         if (msg.value <= highestBid)
             revert BidNotHighEnough(highestBid);
 
         if (highestBid != 0) {
-            // Sending back the Ether by simply using
-            // highestBidder.send(highestBid) is a security risk
-            // because it could execute an untrusted contract.
-            // It is always safer to let the recipients
-            // withdraw their Ether themselves.
             pendingReturns[highestBidder] += highestBid;
         }
         highestBidder = msg.sender;
         highestBid = msg.value;
+
         emit HighestBidIncreased(msg.sender, msg.value);
     }
 
-    /// Withdraw a bid that was overbid.
     function withdraw() external returns (bool) {
         uint amount = pendingReturns[msg.sender];
         if (amount > 0) {
@@ -98,11 +60,7 @@ contract Auction {
             // before `send` returns.
             pendingReturns[msg.sender] = 0;
 
-            // msg.sender is not of type `address payable` and must be
-            // explicitly converted using `payable(msg.sender)` in order
-            // use the member function `send()`.
             if (!payable(msg.sender).send(amount)) {
-                // No need to call throw here, just reset the amount owing
                 pendingReturns[msg.sender] = amount;
                 return false;
             }
@@ -110,8 +68,6 @@ contract Auction {
         return true;
     }
 
-    /// End the auction and send the highest bid
-    /// to the beneficiary.
     function auctionEnd() external {
         // It is a good guideline to structure functions that interact
         // with other contracts (i.e. they call functions or send Ether)
@@ -131,6 +87,7 @@ contract Auction {
             revert AuctionNotYetEnded();
         if (ended)
             revert AuctionEndAlreadyCalled();
+        require(beneficiary == msg.sender, "Only beneficiary can end the auction.");
 
         // 2. Effects
         ended = true;
@@ -142,15 +99,21 @@ contract Auction {
 
     function rate(uint rating) external {
         require(rating > 0 && rating <= 5, "Rating must be from 1 to 5.");
-        require(pendingReturns[msg.sender] != 0, "You can rate only if you have previously bid.");
+        require(pendingReturns[msg.sender] != 0 || highestBidder == msg.sender, "You can rate only if you have previously bid.");
+        require(beneficiary != msg.sender, "You can't rate yourself.");
+        require(ended, "You can rate only auctions that have successfully ended.");
 
-        if (ratings[msg.sender] != 0) {
+        if (ratings[msg.sender] == 0) {
             raters.push(msg.sender);
         }
-
         ratings[msg.sender] = rating;
     }
+
     function getRaters() public view returns (address[] memory) {
         return raters;
+    }
+
+    function getPendingReturnForBidder(address bidder) public view returns (uint) {
+        return pendingReturns[bidder];
     }
 }
