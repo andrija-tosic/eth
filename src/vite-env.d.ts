@@ -7,4 +7,14 @@ declare global {
     ethereum?: MetaMaskInpageProvider;
     web3: Web3<RegisteredSubscription>;
   }
+
+  interface ImportMetaEnv {
+    readonly VITE_APP_TITLE: string;
+    readonly VITE_AUCTION_FACTORY_ADDR: string;
+    // more env variables...
+  }
+
+  interface ImportMeta {
+    readonly env: ImportMetaEnv;
+  }
 }

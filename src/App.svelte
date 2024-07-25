@@ -1,9 +1,10 @@
 <script lang="ts">
-  import { auctionStore } from "./auctions.svelte";
-  import { web3Store } from "./lib/web3.svelte";
-  import Auction from "../../artifacts/Auction.json";
+  import { web3Store } from "./lib/store/web3.store.svelte";
+  import Auction from "../artifacts/contracts/auction.sol/Auction.json";
   import { onMount } from "svelte";
   import { formatTime } from "./lib/util";
+  import { auctionStore } from "./lib/store/auctions.store.svelte";
+  import AuctionCard from "./components/AuctionCard.svelte";
 
   let selectedRating = $state(0);
   let bidAmount = $state<number>()!;
@@ -18,12 +19,18 @@
     return () => clearInterval(interval);
   });
 
-  console.log(web3Store.auctionFactoryContract.events);
-
   const auctionCreatedSub =
     web3Store.auctionFactoryContract.events.AuctionCreated();
-  auctionCreatedSub.on("data", (d) => {
-    console.log({ d });
+  auctionCreatedSub.on("data", async (d) => {
+    const { returnValues } = d;
+    const { auction } = returnValues;
+
+    const { contract, model } = await auctionStore.createAuctionModel(
+      auction as string
+    );
+    auctionStore.auctions.set(auction as string, model);
+
+    auctionStore.handleAuctionEnded(contract,model,auction as string);
   });
 
   const rateAuction = async () => {
@@ -58,11 +65,25 @@
           from: web3Store.account,
           value: window.web3.utils.toWei(bidAmount.toString(), "ether"),
         });
-
-        alert("Bid placed!");
       } catch (error) {
         console.error("Error placing bid:", error);
-        alert("Error placing bid");
+      }
+    }
+  };
+
+  const endAuction = async () => {
+    if (web3Store && auctionStore.selectedAuction) {
+      try {
+        const auctionContract = new window.web3.eth.Contract(
+          Auction.abi,
+          auctionStore.selectedAuction.address
+        );
+
+        await auctionContract.methods
+          .auctionEnd()
+          .send({ from: web3Store.account });
+      } catch (error) {
+        console.error("Error ending auction:", error);
       }
     }
   };
@@ -73,11 +94,8 @@
         await web3Store.auctionFactoryContract.methods
           .createAuction(biddingTime)
           .send({ from: web3Store.account });
-
-        alert("New auction created!");
       } catch (error) {
         console.error("Error creating auction:", error);
-        alert("Error creating auction");
       }
     }
   };
@@ -90,13 +108,19 @@
   >
     <div class="text-white font-bold">eth auctions</div>
     <div class="text-white">Account: {web3Store.account}</div>
+    <div class="text-white">Balance: {parseFloat(web3Store.balance).toFixed(4)} eth</div>
   </header>
 
   <main class="flex p-4">
     <div class="w-2/3 p-4">
       {#if auctionStore.selectedAuction}
-        <div class="border rounded-lg p-4" style="background-color:#2a247a;">
-          <h2 class="text-3xl font-bold">Selected Auction</h2>
+        <div
+          class="text-ellipsis overflow-hidden border rounded-lg p-4"
+          style="background-color:#2a247a;"
+        >
+          <h2 class="text-3xl font-bold">
+            Auction {auctionStore.selectedAuction.address}
+          </h2>
           <p>
             <strong>Auction End Time:</strong>
             {new Date(
@@ -147,7 +171,7 @@
                   style={selectedRating > index
                     ? "background-color: gold;"
                     : ""}
-                  on:click={() => (selectedRating = index + 1)}
+                  onclick={() => (selectedRating = index + 1)}
                 >
                   {index + 1}
                 </button>
@@ -155,7 +179,7 @@
             </div>
             <button
               class="mt-4 bg-purple-600 text-white py-2 px-4 rounded"
-              on:click={rateAuction}
+              onclick={rateAuction}
             >
               Submit Rating
             </button>
@@ -173,9 +197,15 @@
             />
             <button
               class="ml-2 bg-purple-600 text-white py-2 px-4 rounded"
-              on:click={bidOnAuction}
+              onclick={bidOnAuction}
             >
               Place Bid
+            </button>
+            <button
+              class="ml-2 bg-purple-600 text-white py-2 px-4 rounded"
+              onclick={endAuction}
+            >
+              End auction
             </button>
           </div>
         </div>
@@ -195,7 +225,7 @@
           />
           <button
             class="ml-2 bg-purple-600 text-white py-2 px-4 rounded"
-            on:click={createNewAuction}
+            onclick={createNewAuction}
           >
             Create Auction
           </button>
@@ -205,25 +235,18 @@
       <div class="mb-4">
         <h2 class="text-2xl font-bold">Active Auctions</h2>
         <div class="grid grid-cols-1 gap-4">
-          {#each [...auctionStore.auctions.values()].filter((e) => !e.ended) as active}
-            <div
-              class="border text-ellipsis overflow-hidden rounded-lg p-4 cursor-pointer"
-              class:selected-auction={auctionStore.selectedAuction === active}
+          {#each [...auctionStore.auctions.values()]
+            .filter((e) => !e.ended)
+            .sort((e1, e2) => Number(e2.auctionEndTime) - Number(e1.auctionEndTime)) as active (active.address)}
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <AuctionCard
+              auction={active}
+              isSelected={auctionStore.selectedAuction!.address === active.address}
               on:click={() => {
                 auctionStore.selectedAuction = active;
               }}
-            >
-              <p>
-                <strong>Auction End Time:</strong>
-                {new Date(
-                  Number(active.auctionEndTime) * 1000
-                ).toLocaleString()}
-              </p>
-              <p><strong>Beneficiary:</strong> {active.beneficiary}</p>
-              <p><strong>Highest Bid:</strong> {active.highestBid}</p>
-              <p><strong>Highest Bidder:</strong> {active.highestBidder}</p>
-              <p><strong>Ended:</strong> {active.ended}</p>
-            </div>
+            ></AuctionCard>
           {/each}
         </div>
       </div>
@@ -231,25 +254,19 @@
       <div>
         <h2 class="text-2xl font-bold">Finished Auctions</h2>
         <div class="grid grid-cols-1 gap-4">
-          {#each [...auctionStore.auctions.values()].filter((e) => e.ended) as finished}
-            <div
-              class="border rounded-lg p-4 cursor-pointer"
-              class:selected-auction={auctionStore.selectedAuction === finished}
+          {#each [...auctionStore.auctions.values()]
+            .filter((e) => e.ended)
+            .sort((e1, e2) => Number(e2.auctionEndTime) - Number(e1.auctionEndTime)) as finished (finished.address)}
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <AuctionCard
+              auction={finished}
+              isSelected={auctionStore.selectedAuction!.address ===
+                finished.address}
               on:click={() => {
                 auctionStore.selectedAuction = finished;
               }}
-            >
-              <p>
-                <strong>Auction End Time:</strong>
-                {new Date(
-                  Number(finished.auctionEndTime) * 1000
-                ).toLocaleString()}
-              </p>
-              <p><strong>Beneficiary:</strong> {finished.beneficiary}</p>
-              <p><strong>Highest Bid:</strong> {finished.highestBid}</p>
-              <p><strong>Highest Bidder:</strong> {finished.highestBidder}</p>
-              <p><strong>Ended:</strong> {finished.ended}</p>
-            </div>
+            ></AuctionCard>
           {/each}
         </div>
       </div>

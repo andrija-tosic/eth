@@ -14,8 +14,3 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
-
-.selected-auction {
-  background-color: #2a247a;
-  color: white;
-}
