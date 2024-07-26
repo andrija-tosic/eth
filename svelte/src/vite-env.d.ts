@@ -5,7 +5,7 @@ import { Web3 } from "web3";
 declare global {
   interface Window {
     ethereum?: MetaMaskInpageProvider;
-    web3: Web3<RegisteredSubscription>;
+    web3: Web3;
   }
 
   interface ImportMetaEnv {

@@ -22,6 +22,9 @@
   class:selected-auction={isSelected}
   onclick={() => dispatch("click")}
 >
+  <b>
+    {auction.address}
+  </b>
   <p>
     <strong>Auction End Time:</strong>
     {new Date(Number(auction.auctionEndTime) * 1000).toLocaleString()}

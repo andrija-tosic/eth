@@ -1,10 +1,11 @@
 <script lang="ts">
   import { web3Store } from "./lib/store/web3.store.svelte";
-  import Auction from "../artifacts/contracts/auction.sol/Auction.json";
+  import Auction from "../artifacts/contracts/Auction.sol/Auction.json";
   import { onMount } from "svelte";
   import { formatTime } from "./lib/util";
   import { auctionStore } from "./lib/store/auctions.store.svelte";
   import AuctionCard from "./components/AuctionCard.svelte";
+  import { ERR_INVALID_PASSWORD } from "web3";
 
   let selectedRating = $state(0);
   let bidAmount = $state<number>()!;
@@ -19,19 +20,19 @@
     return () => clearInterval(interval);
   });
 
-  const auctionCreatedSub =
-    web3Store.auctionFactoryContract.events.AuctionCreated();
-  auctionCreatedSub.on("data", async (d) => {
-    const { returnValues } = d;
-    const { auction } = returnValues;
+  web3Store.auctionFactoryContract.events
+    .AuctionCreated()
+    .on("data", async (d) => {
+      const { returnValues } = d;
+      const { auction } = returnValues;
 
-    const { contract, model } = await auctionStore.createAuctionModel(
-      auction as string
-    );
-    auctionStore.auctions.set(auction as string, model);
+      const { contract, model } = await auctionStore.createAuctionModel(
+        auction as string
+      );
+      auctionStore.auctions.set(auction as string, model);
 
-    auctionStore.handleAuctionEnded(contract,model,auction as string);
-  });
+      auctionStore.handleAuctionEndedEvent(contract, model);
+    });
 
   const rateAuction = async () => {
     if (web3Store && auctionStore.selectedAuction) {
@@ -48,7 +49,9 @@
         alert("Rating submitted!");
       } catch (error) {
         console.error("Error submitting rating:", error);
-        alert("Error submitting rating");
+
+
+
       }
     }
   };
@@ -61,13 +64,21 @@
           auctionStore.selectedAuction.address
         );
 
-        await auctionContract.methods.bid().send({
+        const data = await auctionContract.methods.bid().send({
           from: web3Store.account,
           value: window.web3.utils.toWei(bidAmount.toString(), "ether"),
         });
       } catch (error) {
         console.error("Error placing bid:", error);
-      }
+        console.log(JSON.stringify(error,null,2))
+        
+        let errFlat = JSON.stringify(error);
+        let { innerError : { message } } = JSON.parse(errFlat);
+
+        message = message.replace('execution reverted: ', '');
+        console.log(message);
+      
+}
     }
   };
 
@@ -108,7 +119,11 @@
   >
     <div class="text-white font-bold">eth auctions</div>
     <div class="text-white">Account: {web3Store.account}</div>
-    <div class="text-white">Balance: {parseFloat(web3Store.balance).toFixed(4)} eth</div>
+    <div class="text-white">
+      Balance: {parseFloat(
+        window.web3.utils.fromWei(web3Store.balance, "ether")
+      ).toFixed(4)} eth
+    </div>
   </header>
 
   <main class="flex p-4">
@@ -145,7 +160,10 @@
           </p>
           <p>
             <strong>Highest Bid:</strong>
-            {auctionStore.selectedAuction.highestBid}
+            {window.web3.utils.fromWei(
+              auctionStore.selectedAuction.highestBid,
+              "ether"
+            )} eth
           </p>
           <p>
             <strong>Highest Bidder:</strong>
@@ -153,10 +171,13 @@
           </p>
           <p>
             <strong>Your bid:</strong>
-            {auctionStore.selectedAuction.currentBid}
+            {window.web3.utils.fromWei(
+              auctionStore.selectedAuction.currentBid!,
+              "ether"
+            )} eth
           </p>
           <p>
-            <strong>Ratings:</strong>
+            <strong>Beneficiary's ratings:</strong>
             {auctionStore.selectedAuction.beneficiaryRatings?.length > 0
               ? auctionStore.selectedAuction.beneficiaryRatings
               : "none"}
@@ -235,14 +256,13 @@
       <div class="mb-4">
         <h2 class="text-2xl font-bold">Active Auctions</h2>
         <div class="grid grid-cols-1 gap-4">
-          {#each [...auctionStore.auctions.values()]
-            .filter((e) => !e.ended)
-            .sort((e1, e2) => Number(e2.auctionEndTime) - Number(e1.auctionEndTime)) as active (active.address)}
+          {#each auctionStore.activeAuctions() as active (active.address)}
             <!-- svelte-ignore a11y_click_events_have_key_events -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <AuctionCard
               auction={active}
-              isSelected={auctionStore.selectedAuction!.address === active.address}
+              isSelected={auctionStore.selectedAuction?.address ===
+                active.address}
               on:click={() => {
                 auctionStore.selectedAuction = active;
               }}
@@ -254,14 +274,12 @@
       <div>
         <h2 class="text-2xl font-bold">Finished Auctions</h2>
         <div class="grid grid-cols-1 gap-4">
-          {#each [...auctionStore.auctions.values()]
-            .filter((e) => e.ended)
-            .sort((e1, e2) => Number(e2.auctionEndTime) - Number(e1.auctionEndTime)) as finished (finished.address)}
+          {#each auctionStore.finishedAuctions() as finished (finished.address)}
             <!-- svelte-ignore a11y_click_events_have_key_events -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <AuctionCard
               auction={finished}
-              isSelected={auctionStore.selectedAuction!.address ===
+              isSelected={auctionStore.selectedAuction?.address ===
                 finished.address}
               on:click={() => {
                 auctionStore.selectedAuction = finished;
