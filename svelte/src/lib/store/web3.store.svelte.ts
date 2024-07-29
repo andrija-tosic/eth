@@ -21,13 +21,13 @@ class Web3Store {
 
     window.ethereum
       .request({ method: "eth_chainId" })
-      .then((c: string) => console.log({ c: parseInt(c, 16) }));
+      .then((c) => console.log({ chainId: parseInt(String(c), 16) }));
 
     window.ethereum
       .request<string[]>({
         method: "eth_requestAccounts",
       })
-      .then((accounts: string[]) => {
+      .then((accounts) => {
         this.account = accounts![0]!;
 
         window.web3.eth.getBalance(this.account!).then((balance) => {
@@ -35,15 +35,12 @@ class Web3Store {
         });
       });
 
-    window.ethereum.on("accountsChanged", (accounts: string[]) => {
+    window.ethereum.on("accountsChanged", (accounts) => {
       this.account = (accounts as string[])[0];
 
-      window
-        .ethereum!.request({
-          method: "eth_getBalance",
-          params: [null, null],
-        })
-        .then();
+      window.web3.eth.getBalance(this.account!).then((balance) => {
+        this.balance = balance;
+      });
     });
   }
 }

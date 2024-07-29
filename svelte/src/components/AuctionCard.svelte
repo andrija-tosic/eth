@@ -18,27 +18,26 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-  class="border text-ellipsis overflow-hidden rounded-lg p-4 cursor-pointer"
+  class="border border-gray-900 text-ellipsis overflow-hidden rounded-lg p-4 cursor-pointer"
   class:selected-auction={isSelected}
   onclick={() => dispatch("click")}
 >
   <b>
-    {auction.address}
+    auction {auction.address}
   </b>
   <p>
-    <strong>Auction End Time:</strong>
+    <strong>auction end time:</strong>
     {new Date(Number(auction.auctionEndTime) * 1000).toLocaleString()}
   </p>
-  <p><strong>Beneficiary:</strong> {auction.beneficiary}</p>
-  <p><strong>Highest Bid:</strong> {auction.highestBid}</p>
-  <p><strong>Highest Bidder:</strong> {auction.highestBidder}</p>
+  <p><strong>beneficiary:</strong> {auction.beneficiary}</p>
+  <p>
+    <strong>highest bid:</strong>
+    {window.web3.utils.fromWei(auction.highestBid, "ether")} ETH
+  </p>
+  <p><strong>highest bidder:</strong> {auction.highestBidder}</p>
 </div>
 
 <style>
-  @tailwind base;
-  @tailwind components;
-  @tailwind utilities;
-
   .selected-auction {
     background-color: #2a247a;
     color: white;

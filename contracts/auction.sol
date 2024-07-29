@@ -21,11 +21,6 @@ contract Auction {
     event HighestBidIncreased(address bidder, uint amount);
     event AuctionEnded(address winner, uint amount);
 
-    error AuctionAlreadyEnded();
-    error BidNotHighEnough(uint highestBid);
-    error AuctionNotYetEnded();
-    error AuctionEndAlreadyCalled();
-
     constructor(
         uint biddingTime,
         address payable beneficiaryAddress
@@ -35,13 +30,9 @@ contract Auction {
     }
 
     function bid() external payable {
-        if (block.timestamp > auctionEndTime)
-            revert AuctionAlreadyEnded();
-
+        require(block.timestamp <= auctionEndTime, "Auction already ended.");
         require(msg.sender != beneficiary, "Beneficiary can't bid on their own auction.");
-        
-        if (msg.value <= highestBid)
-            revert BidNotHighEnough(highestBid);
+        require(msg.value > highestBid, "Bid not high enough.");
 
         if (highestBid != 0) {
             pendingReturns[highestBidder] += highestBid;
@@ -83,10 +74,8 @@ contract Auction {
         // external contracts.
 
         // 1. Conditions
-        if (block.timestamp < auctionEndTime)
-            revert AuctionNotYetEnded();
-        if (ended)
-            revert AuctionEndAlreadyCalled();
+        require(block.timestamp >= auctionEndTime, "Auction not yet ended.");
+        require(!ended, "Auction end already called.");
         require(beneficiary == msg.sender, "Only beneficiary can end the auction.");
 
         // 2. Effects

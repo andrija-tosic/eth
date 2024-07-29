@@ -4,6 +4,7 @@
     "useDefineForClassFields": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,
+    "target": "ESNext",
     /**
      * Typecheck JS in `.svelte` and `.js` files by default.
      * Disable checkJs if you'd like to use dynamic types in JS.
@@ -17,5 +18,5 @@
   },
   "include": ["src/**/*.ts", "src/**/*.js", "src/**/*.svelte", "vite-env.d.ts"],
   "references": [{ "path": "./tsconfig.node.json" }],
-  "files": ["./hardhat.config.ts"]
+  "files": ["../hardhat.config.ts"]
 }

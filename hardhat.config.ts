@@ -1,3 +1,4 @@
+import "@nomicfoundation/hardhat-ignition";
 import { extendEnvironment } from "hardhat/config";
 import "@nomicfoundation/hardhat-web3-v4"; // <================
 import { Web3 } from "web3";

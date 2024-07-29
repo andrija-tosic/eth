@@ -38,7 +38,7 @@ class AuctionStore {
       const { contract, model } = await this.createAuctionModel(a);
 
       if (!model.ended) {
-        this.handleAuctionEndedEvent(contract, model);
+        this.addAuctionEndedEventListener(contract, model);
       }
 
       contract.events.HighestBidIncreased().on("data", (d) => {
@@ -65,7 +65,7 @@ class AuctionStore {
     }
   }
 
-  handleAuctionEndedEvent(
+  addAuctionEndedEventListener(
     contract: Contract<ContractAbi>,
     model: AuctionModel
   ) {
