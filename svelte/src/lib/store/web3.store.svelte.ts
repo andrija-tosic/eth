@@ -1,48 +1,50 @@
-import Web3, { Contract, type ContractAbi } from "web3";
-import AuctionFactory from "../../../../artifacts/contracts/AuctionFactory.sol/AuctionFactory.json";
+import Web3 from "web3";
 
 class Web3Store {
   account = $state<string>()!;
   balance = $state<bigint>()!;
-  auctionFactoryContract: Contract<ContractAbi> = $state()!;
 
-  constructor() {
+  private constructor() {}
+
+  // async #handleAccountsChanged(accounts: unknown) {
+  //   this.account = (accounts as string[])[0];
+  //   this.balance = await window.web3.eth.getBalance(this.account!);
+  // }
+
+  async updateBalance() {
+    this.balance = await window.web3.eth.getBalance(this.account);
+  }
+
+  static async init() {
+    if (!window.ethereum) throw new Error("Ethereum not available in browser");
+
+    const store = new Web3Store();
     window.web3 = new Web3(window.ethereum);
 
     window.web3.handleRevert = true;
     window.web3.eth.handleRevert = true;
 
-    this.auctionFactoryContract = new window.web3.eth.Contract(
-      AuctionFactory.abi,
-      import.meta.env.VITE_AUCTION_FACTORY_ADDR
-    );
-
-    if (!window.ethereum) return;
-
     window.ethereum
       .request({ method: "eth_chainId" })
       .then((c) => console.log({ chainId: parseInt(String(c), 16) }));
 
-    window.ethereum
-      .request<string[]>({
-        method: "eth_requestAccounts",
-      })
-      .then((accounts) => {
-        this.account = accounts![0]!;
+    // WOW.
+    // window.ethereum.removeAllListeners();
 
-        window.web3.eth.getBalance(this.account!).then((balance) => {
-          this.balance = balance;
-        });
-      });
-
-    window.ethereum.on("accountsChanged", (accounts) => {
-      this.account = (accounts as string[])[0];
-
-      window.web3.eth.getBalance(this.account!).then((balance) => {
-        this.balance = balance;
-      });
+    // window.ethereum.off("accountsChanged", store.#handleAccountsChanged);
+    window.ethereum.on("accountsChanged", async (accounts) => {
+      web3Store.account = (accounts as string[])[0];
+      web3Store.balance = await window.web3.eth.getBalance(web3Store.account!);
     });
+
+    const accounts = await window.ethereum!.request<string[]>({
+      method: "eth_requestAccounts",
+    });
+    store.account = accounts![0]!;
+    store.balance = await window.web3.eth.getBalance(store.account!);
+
+    return store;
   }
 }
 
-export const web3Store = new Web3Store();
+export const web3Store = await Web3Store.init();

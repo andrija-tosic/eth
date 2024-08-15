@@ -20,6 +20,7 @@ contract Auction {
 
     event HighestBidIncreased(address bidder, uint amount);
     event AuctionEnded(address winner, uint amount);
+    event PendingReturnIncreased(address bidder, uint amount);
 
     constructor(
         uint biddingTime,
@@ -36,6 +37,7 @@ contract Auction {
 
         if (highestBid != 0) {
             pendingReturns[highestBidder] += highestBid;
+            emit PendingReturnIncreased(highestBidder, pendingReturns[highestBidder]);
         }
         highestBidder = msg.sender;
         highestBid = msg.value;
@@ -46,9 +48,6 @@ contract Auction {
     function withdraw() external returns (bool) {
         uint amount = pendingReturns[msg.sender];
         if (amount > 0) {
-            // It is important to set this to zero because the recipient
-            // can call this function again as part of the receiving call
-            // before `send` returns.
             pendingReturns[msg.sender] = 0;
 
             if (!payable(msg.sender).send(amount)) {
@@ -60,29 +59,13 @@ contract Auction {
     }
 
     function auctionEnd() external {
-        // It is a good guideline to structure functions that interact
-        // with other contracts (i.e. they call functions or send Ether)
-        // into three phases:
-        // 1. checking conditions
-        // 2. performing actions (potentially changing conditions)
-        // 3. interacting with other contracts
-        // If these phases are mixed up, the other contract could call
-        // back into the current contract and modify the state or cause
-        // effects (ether payout) to be performed multiple times.
-        // If functions called internally include interaction with external
-        // contracts, they also have to be considered interaction with
-        // external contracts.
-
-        // 1. Conditions
         require(block.timestamp >= auctionEndTime, "Auction not yet ended.");
         require(!ended, "Auction end already called.");
         require(beneficiary == msg.sender, "Only beneficiary can end the auction.");
 
-        // 2. Effects
         ended = true;
         emit AuctionEnded(highestBidder, highestBid);
 
-        // 3. Interaction
         beneficiary.transfer(highestBid);
     }
 

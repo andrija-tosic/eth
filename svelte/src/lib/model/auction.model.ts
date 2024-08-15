@@ -1,3 +1,5 @@
+import type { Contract, ContractAbi } from "web3";
+
 export type AuctionModel = {
   address: string;
   auctionEndTime: number;
@@ -6,5 +8,6 @@ export type AuctionModel = {
   highestBidder: string;
   ended: boolean;
   beneficiaryRatings: number[];
-  currentBid?: bigint;
+  pendingReturn: bigint;
+  contract: Contract<ContractAbi>;
 };

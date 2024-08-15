@@ -1,9 +1,9 @@
 <script lang="ts">
   import { web3Store } from "./lib/store/web3.store.svelte";
-  import Auction from "../../artifacts/contracts/Auction.sol/Auction.json"
   import { formatTime } from "./lib/util";
   import { auctionStore } from "./lib/store/auctions.store.svelte";
   import AuctionCard from "./components/AuctionCard.svelte";
+  import Header from "./components/Header.svelte";
 
   let selectedRating = $state(0);
   let bidAmount = $state<number>()!;
@@ -18,38 +18,19 @@
     return () => clearInterval(interval);
   });
 
-  web3Store.auctionFactoryContract.events
-    .AuctionCreated()
-    .on("data", async (d) => {
-      const { returnValues } = d;
-      const { auction } = returnValues;
-
-      const { contract, model } = await auctionStore.createAuctionModel(
-        auction as string
-      );
-      auctionStore.auctions.set(auction as string, model);
-
-      auctionStore.addAuctionEndedEventListener(contract, model);
-    });
-
   const rateAuction = async () => {
     if (web3Store && auctionStore.selectedAuction) {
       try {
-        const auctionContract = new window.web3.eth.Contract(
-          Auction.abi,
-          auctionStore.selectedAuction.address
-        );
+        const auctionContract = auctionStore.selectedAuction.contract;
 
+        console.log('Rating auction...')
         await auctionContract.methods
           .rate(selectedRating)
           .send({ from: web3Store.account });
 
-        alert("Rating submitted!");
+        console.log("Rating submitted!");
       } catch (error) {
         console.error("Error submitting rating:", error);
-
-
-
       }
     }
   };
@@ -57,12 +38,10 @@
   const bidOnAuction = async () => {
     if (web3Store && auctionStore.selectedAuction) {
       try {
-        const auctionContract = new window.web3.eth.Contract(
-          Auction.abi,
-          auctionStore.selectedAuction.address
-        );
+        const auctionContract = auctionStore.selectedAuction.contract;
 
-        const data = await auctionContract.methods.bid().send({
+        console.log('Bidding on auction...')
+          await auctionContract.methods.bid().send({
           from: web3Store.account,
           value: window.web3.utils.toWei(bidAmount.toString(), "ether"),
         });
@@ -75,37 +54,29 @@
 
         message = message.replace('execution reverted: ', '');
         console.log(message);
-      
-}
+      }
     }
   };
 
   const endAuction = async () => {
     if (web3Store && auctionStore.selectedAuction) {
       try {
-        const auctionContract = new window.web3.eth.Contract(
-          Auction.abi,
-          auctionStore.selectedAuction.address
-        );
-
-        await auctionContract.methods
-          .auctionEnd()
-          .send({ from: web3Store.account });
+        const auctionContract = auctionStore.selectedAuction.contract;
+        
+        console.log('Ending auction...')
+        await auctionContract.methods.auctionEnd().send({ from: web3Store.account });
       } catch (error) {
         console.error("Error ending auction:", error);
       }
     }
   };
 
-
   const withdrawBid = async () => {
     if (web3Store && auctionStore.selectedAuction) {
       try {
-        const auctionContract = new window.web3.eth.Contract(
-          Auction.abi,
-          auctionStore.selectedAuction.address
-        );
+        const auctionContract = auctionStore.selectedAuction.contract;
 
+        console.log('Withdrawing bid...')
         await auctionContract.methods
           .withdraw()
           .send({ from: web3Store.account });
@@ -118,7 +89,8 @@
   const createNewAuction = async () => {
     if (web3Store) {
       try {
-        await web3Store.auctionFactoryContract.methods
+        console.log('Creating auction...')
+        await auctionStore.auctionFactoryContract.methods
           .createAuction(biddingTime)
           .send({ from: web3Store.account });
       } catch (error) {
@@ -129,19 +101,7 @@
 </script>
 
 {#if web3Store}
-  <header
-    class="bg-dark max-w-full h-14 flex justify-between items-center px-4"
-    style="background-color:#2a247a;"
-  >
-    <div class="text-white font-bold">auctions dApp</div>
-    <div class="text-white">Account: {web3Store.account}</div>
-    <div class="text-white">
-      Balance: {parseFloat(
-        window.web3.utils.fromWei(web3Store.balance, "ether")
-      ).toFixed(4)} ETH
-    </div>
-  </header>
-
+  <Header></Header>
   <main class="flex p-4">
     <div class="w-2/3 p-4">
       {#if auctionStore.selectedAuction}
@@ -165,8 +125,7 @@
               )
             )}
             {Number(auctionStore.selectedAuction.auctionEndTime) * 1000 -
-              currentTimeMillis >
-            0
+              currentTimeMillis >= 1.0
               ? "left"
               : "ago"})
           </p>
@@ -188,7 +147,7 @@
           <p>
             <strong>you can withdraw:</strong>
             {window.web3.utils.fromWei(
-              auctionStore.selectedAuction.currentBid!,
+              auctionStore.selectedAuction.pendingReturn!,
               "ether"
             )} ETH
           </p>
@@ -226,8 +185,8 @@
               min="0"
               step="0.001"
               bind:value={bidAmount}
-              class="border rounded px-2 py-1"
-              placeholder="Bid amount in ETH"
+              class="border border-gray-900 rounded px-2 py-1"
+              placeholder="bid amount in ETH"
             />
             <button
               class="ml-2 bg-gray-900 text-white py-2 px-4 rounded"
@@ -254,6 +213,9 @@
           </button>
         </div>
         </div>
+        {:else}
+        <h2>create an auction.
+        </h2>
       {/if}
     </div>
 
@@ -266,7 +228,7 @@
             min="0"
             bind:value={biddingTime}
             class="rounded px-2 py-1"
-            placeholder="Bidding time in seconds"
+            placeholder="bidding time (secs)"
           />
           <button
             class="ml-2 bg-gray-900 text-white py-2 px-4 rounded"
@@ -287,10 +249,10 @@
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <AuctionCard
               auction={active}
-              isSelected={auctionStore.selectedAuction?.address ===
-                active.address}
+              isSelected={auctionStore.selectedAuction?.address.toLowerCase() ===
+                active.address.toLowerCase()}
               on:click={() => {
-                auctionStore.selectedAuction = active;
+                auctionStore.selectedAuctionAddress = active.address;
               }}
             ></AuctionCard>
           {/each}
@@ -311,10 +273,10 @@
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <AuctionCard
               auction={finished}
-              isSelected={auctionStore.selectedAuction?.address ===
-                finished.address}
+              isSelected={auctionStore.selectedAuction?.address.toLowerCase() ===
+                finished.address.toLowerCase()}
               on:click={() => {
-                auctionStore.selectedAuction = finished;
+                auctionStore.selectedAuctionAddress = finished.address;
               }}
             ></AuctionCard>
           {/each}

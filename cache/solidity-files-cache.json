@@ -2,8 +2,8 @@
   "_format": "hh-sol-cache-2",
   "files": {
     "/Users/andrija/personal projects/blockchain/contracts/Auction.sol": {
-      "lastModificationDate": 1721999344983,
-      "contentHash": "8557afa80924978fe4d07ba7fe0f88a2",
+      "lastModificationDate": 1722257449231,
+      "contentHash": "cb1f19f19dac36174797666801a44cae",
       "sourceName": "contracts/Auction.sol",
       "solcConfig": {
         "version": "0.8.4",
