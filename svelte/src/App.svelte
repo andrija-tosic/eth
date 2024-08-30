@@ -15,7 +15,10 @@
       currentTimeMillis = Date.now();
     }, 1000);
 
+    console.log(auctionStore.auctions)
+
     return () => clearInterval(interval);
+
   });
 
   const rateAuction = async () => {
@@ -240,11 +243,11 @@
       </div>
 
       <div class="mb-4">
-        {#if auctionStore.activeAuctions().length}
+        {#if auctionStore.activeAuctions.length}
         <h2>active auctions</h2>
       {/if}
         <div class="grid grid-cols-1 gap-4">
-          {#each auctionStore.activeAuctions() as active (active.address)}
+          {#each auctionStore.activeAuctions as active (active.address)}
             <!-- svelte-ignore a11y_click_events_have_key_events -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <AuctionCard
@@ -259,16 +262,16 @@
         </div>
       </div>
 
-      {#if auctionStore.activeAuctions().length && auctionStore.finishedAuctions().length}
+      {#if auctionStore.activeAuctions.length && auctionStore.finishedAuctions.length}
         <hr class="mt-4 mb-4" />
       {/if}
 
       <div>
-      {#if auctionStore.finishedAuctions().length}
+      {#if auctionStore.finishedAuctions.length}
         <h2>finished auctions</h2>
       {/if}
         <div class="grid grid-cols-1 gap-4">
-          {#each auctionStore.finishedAuctions() as finished (finished.address)}
+          {#each auctionStore.finishedAuctions as finished (finished.address)}
             <!-- svelte-ignore a11y_click_events_have_key_events -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <AuctionCard

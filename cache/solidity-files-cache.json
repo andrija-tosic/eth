@@ -1,9 +1,9 @@
 {
   "_format": "hh-sol-cache-2",
   "files": {
-    "/Users/andrija/personal projects/blockchain/contracts/Auction.sol": {
-      "lastModificationDate": 1722257449231,
-      "contentHash": "cb1f19f19dac36174797666801a44cae",
+    "D:\\Desktop\\eth\\contracts\\Auction.sol": {
+      "lastModificationDate": 1723753072923,
+      "contentHash": "2c6d8c439d3ad3ecc2153e1ba04b772f",
       "sourceName": "contracts/Auction.sol",
       "solcConfig": {
         "version": "0.8.4",
@@ -36,9 +36,9 @@
         "Auction"
       ]
     },
-    "/Users/andrija/personal projects/blockchain/contracts/AuctionFactory.sol": {
-      "lastModificationDate": 1721994008933,
-      "contentHash": "0c002297fe6cf1fd47871152cb8cbfb9",
+    "D:\\Desktop\\eth\\contracts\\AuctionFactory.sol": {
+      "lastModificationDate": 1723751979377,
+      "contentHash": "469117ebb5f02a0e03579b072fb9fb79",
       "sourceName": "contracts/AuctionFactory.sol",
       "solcConfig": {
         "version": "0.8.4",
