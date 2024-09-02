@@ -7,7 +7,7 @@ export type AuctionModel = {
   highestBid: bigint;
   highestBidder: string;
   ended: boolean;
-  beneficiaryRatings: number[];
+  beneficiaryRatings: bigint[];
   pendingReturn: bigint;
   contract: Contract<ContractAbi>;
 };

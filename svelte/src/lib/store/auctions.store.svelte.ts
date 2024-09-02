@@ -3,26 +3,27 @@ import AuctionFactory from "../../../../artifacts/contracts/AuctionFactory.sol/A
 import Auction from "../../../../artifacts/contracts/Auction.sol/Auction.json";
 import type { Contract, ContractAbi } from "web3";
 import { web3Store } from "./web3.store.svelte";
+import { SvelteMap } from "svelte/reactivity";
 
 class AuctionStore {
-  auctions = $state([] as Array<AuctionModel>);
+  auctions = $state(new SvelteMap<string, AuctionModel>());
 
   auctionFactoryContract!: Contract<ContractAbi>;
 
   activeAuctions = $derived(
-    Object.values(this.auctions)
+    [...this.auctions.values()]
       .filter((e) => !e.ended)
       .sort((e1, e2) => Number(e2.auctionEndTime) - Number(e1.auctionEndTime))
   );
 
   finishedAuctions = $derived(
-    Object.values(this.auctions)
+    [...this.auctions.values()]
       .filter((e) => e.ended)
       .sort((e1, e2) => Number(e2.auctionEndTime) - Number(e1.auctionEndTime))
   );
 
   selectedAuctionAddress = $state<string>()!;
-  selectedAuction = $derived(this.auctions.find((e) => e.address == this.selectedAuctionAddress));
+  selectedAuction = $derived(this.auctions.get(this.selectedAuctionAddress));
 
   private constructor() {}
 
@@ -39,22 +40,26 @@ class AuctionStore {
 
       console.log("Auction created");
 
-      const model = await auctionStore.createAuction(auction as string);
-      auctionStore.auctions.push(model);
+      const model = $state(await auctionStore.createAuction(auction as string));
+      auctionStore.auctions.set(model.address, model);
       auctionStore.#setupAuctionEventListeners(model);
       auctionStore.selectedAuctionAddress = auction as string;
     });
 
-    const activeAuctions: string[] = await auctionStore.auctionFactoryContract.methods.getActiveAuctions().call();
+    const activeAuctions: string[] = await auctionStore.auctionFactoryContract.methods
+      .getActiveAuctions()
+      .call();
 
-    const finishedAuctions: string[] = await auctionStore.auctionFactoryContract.methods.getFinishedAuctions().call();
+    const finishedAuctions: string[] = await auctionStore.auctionFactoryContract.methods
+      .getFinishedAuctions()
+      .call();
 
     const auctions = [...activeAuctions, ...finishedAuctions];
 
     for (const a of auctions) {
-      const model = await auctionStore.createAuction(a);
-      auctionStore.auctions.push(model);
+      const model = $state(await auctionStore.createAuction(a));
       auctionStore.#setupAuctionEventListeners(model);
+      auctionStore.auctions.set(model.address, model);
     }
 
     return auctionStore;
@@ -62,7 +67,7 @@ class AuctionStore {
 
   #setupAuctionEventListeners(model: AuctionModel) {
     if (!model.ended) {
-      model.contract.events.AuctionEnded().on("data", (d) => {
+      model.contract.events.AuctionEnded().on("data", async (d) => {
         const { returnValues } = d;
         const { winner, amount } = returnValues;
 
@@ -71,7 +76,7 @@ class AuctionStore {
 
         if (web3Store.account.toLowerCase() === model.beneficiary.toLowerCase()) {
           console.log("Balance should get updated");
-          web3Store.updateBalance();
+          await web3Store.updateBalance();
         }
       });
     }
@@ -111,7 +116,9 @@ class AuctionStore {
       ended: await contract.methods.ended().call(),
       highestBid: await contract.methods.highestBid().call(),
       highestBidder: await contract.methods.highestBidder().call(),
-      beneficiaryRatings: await this.auctionFactoryContract.methods.getBeneficiarysRatings(beneficiary).call(),
+      beneficiaryRatings: await this.auctionFactoryContract.methods
+        .getBeneficiarysRatings(beneficiary)
+        .call(),
       pendingReturn: await contract.methods.getPendingReturnForBidder(web3Store.account).call(),
       contract,
     };

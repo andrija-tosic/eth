@@ -32,6 +32,9 @@
           .send({ from: web3Store.account });
 
         console.log("Rating submitted!");
+        auctionStore.selectedAuction.beneficiaryRatings = await auctionStore.auctionFactoryContract.methods
+        .getBeneficiarysRatings(auctionStore.selectedAuction.beneficiary)
+        .call();
       } catch (error) {
         console.error("Error submitting rating:", error);
       }
@@ -48,6 +51,7 @@
           from: web3Store.account,
           value: window.web3.utils.toWei(bidAmount.toString(), "ether"),
         });
+        await web3Store.updateBalance();
       } catch (error) {
         console.error("Error placing bid:", error);
         console.log(JSON.stringify(error,null,2))
@@ -83,6 +87,10 @@
         await auctionContract.methods
           .withdraw()
           .send({ from: web3Store.account });
+
+          auctionStore.selectedAuction.pendingReturn = 0n;
+          await web3Store.updateBalance();
+          console.log("Bid withdrawn, balance should get updated")
       } catch (error) {
         console.error("Error withdrawing bid:", error);
       }
@@ -157,7 +165,16 @@
           <p>
             <strong>beneficiary's ratings:</strong>
             {auctionStore.selectedAuction.beneficiaryRatings?.length > 0
-              ? auctionStore.selectedAuction.beneficiaryRatings
+              ? '[' + (auctionStore.selectedAuction.beneficiaryRatings.join(', ')) + ']'
+              : "none"}
+          </p>
+          <p>
+            <strong>average rating:</strong>
+            {
+            auctionStore.selectedAuction.beneficiaryRatings?.length > 0
+            ? parseFloat((Number(auctionStore.selectedAuction.beneficiaryRatings.reduce((acc, e) => acc += e, 0n))
+              / (auctionStore.selectedAuction.beneficiaryRatings.length)
+            ).toFixed(2))
               : "none"}
           </p>
 
@@ -182,39 +199,45 @@
           </div>
 
           <div class="mt-4 flex items-center">
-            <h3 class="text-xl font-bold mr-2">place a bid:</h3>
-            <input
-              type="number"
-              min="0"
-              step="0.001"
-              bind:value={bidAmount}
-              class="border border-gray-900 rounded px-2 py-1"
-              placeholder="bid amount in ETH"
-            />
-            <button
-              class="ml-2 bg-gray-900 text-white py-2 px-4 rounded"
-              onclick={bidOnAuction}
-            >
-              place bid
-            </button>
+            {#if auctionStore.selectedAuction.beneficiary.toLowerCase() !== web3Store.account.toLowerCase()}
+              <h3 class="text-xl font-bold mr-2">place a bid:</h3>
+              <input
+                type="number"
+                min="0"
+                step="0.001"
+                bind:value={bidAmount}
+                class="border border-gray-900 rounded px-2 py-1"
+                placeholder="bid amount in ETH"
+              />
+              <button
+                class="ml-2 bg-gray-900 text-white py-2 px-4 rounded"
+                onclick={bidOnAuction}
+              >
+                place bid
+              </button>
+            {/if}
             
           </div>
 
           <div class="mt-4 flex justify-between">
-            <button
-            class="ml-2 bg-gray-900 text-white py-2 px-4 rounded"
-            onclick={withdrawBid}
-          >
-              withdraw bid
-            </button>
-          
-            <button
-            class="ml-2 bg-gray-900 text-white py-2 px-4 rounded"
-            onclick={endAuction}
-          >
-            end auction
-          </button>
-        </div>
+            {#if auctionStore.selectedAuction.pendingReturn > 0}
+              <button
+              class="ml-2 bg-gray-900 text-white py-2 px-4 rounded"
+              onclick={withdrawBid}
+              >
+                withdraw bid
+              </button>
+            {/if}
+
+            {#if web3Store.account.toLowerCase() === auctionStore.selectedAuction.beneficiary.toLowerCase()}
+              <button
+                class="ml-2 bg-gray-900 text-white py-2 px-4 rounded"
+                onclick={endAuction}
+              >
+              end auction
+              </button>
+            {/if}
+          </div>
         </div>
         {:else}
         <h2>create an auction.
@@ -248,8 +271,6 @@
       {/if}
         <div class="grid grid-cols-1 gap-4">
           {#each auctionStore.activeAuctions as active (active.address)}
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
             <AuctionCard
               auction={active}
               isSelected={auctionStore.selectedAuction?.address.toLowerCase() ===
@@ -272,8 +293,6 @@
       {/if}
         <div class="grid grid-cols-1 gap-4">
           {#each auctionStore.finishedAuctions as finished (finished.address)}
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
             <AuctionCard
               auction={finished}
               isSelected={auctionStore.selectedAuction?.address.toLowerCase() ===

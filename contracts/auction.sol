@@ -30,7 +30,7 @@ contract Auction {
         auctionEndTime = block.timestamp + biddingTime;
     }
 
-    function bid() external payable {
+    function bid() public payable {
         require(block.timestamp <= auctionEndTime, "Auction already ended.");
         require(msg.sender != beneficiary, "Beneficiary can't bid on their own auction.");
         require(msg.value > highestBid, "Bid not high enough.");
@@ -45,7 +45,7 @@ contract Auction {
         emit HighestBidIncreased(msg.sender, msg.value);
     }
 
-    function withdraw() external returns (bool) {
+    function withdraw() public returns (bool) {
         uint amount = pendingReturns[msg.sender];
         if (amount > 0) {
             pendingReturns[msg.sender] = 0;
@@ -58,7 +58,7 @@ contract Auction {
         return true;
     }
 
-    function auctionEnd() external {
+    function auctionEnd() public {
         require(block.timestamp >= auctionEndTime, "Auction not yet ended.");
         require(!ended, "Auction end already called.");
         require(beneficiary == msg.sender, "Only beneficiary can end the auction.");
@@ -69,7 +69,7 @@ contract Auction {
         beneficiary.transfer(highestBid);
     }
 
-    function rate(uint rating) external {
+    function rate(uint rating) public {
         require(rating > 0 && rating <= 5, "Rating must be from 1 to 5.");
         require(pendingReturns[msg.sender] != 0 || highestBidder == msg.sender, "You can rate only if you have previously bid.");
         require(beneficiary != msg.sender, "You can't rate yourself.");
