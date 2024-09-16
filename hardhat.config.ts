@@ -1,17 +1,11 @@
 import "@nomicfoundation/hardhat-ignition";
-import { extendEnvironment } from "hardhat/config";
+import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-web3-v4";
-import { Web3 } from "web3";
+import "@typechain/hardhat";
+import "@nomicfoundation/hardhat-ethers";
+import "@nomicfoundation/hardhat-chai-matchers";
 
-extendEnvironment((hre) => {
-  (hre as any).Web3 = Web3;
-
-  // hre.network.provider is an EIP1193-compatible provider.
-  hre.web3 = new Web3(hre.network.provider);
-});
-
-/** @type import('hardhat/config').HardhatUserConfig */
-const config = {
+const config: HardhatUserConfig = {
   solidity: "0.8.4",
   networks: {
     hardhat: {
@@ -21,4 +15,3 @@ const config = {
 };
 
 export default config;
-// module.exports = config;

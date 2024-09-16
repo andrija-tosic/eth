@@ -3,8 +3,9 @@
 <script lang="ts">
   import { createEventDispatcher } from "svelte";
   import type { AuctionModel } from "../lib/model/auction.model";
+  import { ethers } from "ethers";
 
-  const dispatch = createEventDispatcher(); // until $$props() is not defined error gets fixed
+  const dispatch = createEventDispatcher(); // until "$$props() is not defined" error gets fixed
 
   let {
     auction,
@@ -18,23 +19,29 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-  class="border border-gray-900 text-ellipsis overflow-hidden rounded-lg p-4 cursor-pointer"
+  class="border border-gray-300 text-ellipsis overflow-hidden rounded-lg p-4 cursor-pointer"
   class:selected-auction={isSelected}
   onclick={() => dispatch("click")}
 >
-  <b>
-    auction {auction.address}
-  </b>
+  <!-- <p>
+    {auction.address}
+  </p> -->
   <p>
-    <strong>auction end time:</strong>
-    {new Date(Number(auction.auctionEndTime) * 1000).toLocaleString()}
+    <strong>{auction.item}</strong>
   </p>
-  <p><strong>beneficiary:</strong> {auction.beneficiary}</p>
+
+  <i>
+    {auction.description}
+  </i>
   <p>
-    <strong>highest bid:</strong>
-    {window.web3.utils.fromWei(auction.highestBid, "ether")} ETH
+    <strong>ends at</strong>
+    {new Date(Number(auction.endTime) * 1000).toLocaleString()}
   </p>
-  <p><strong>highest bidder:</strong> {auction.highestBidder}</p>
+  <p><strong>beneficiary</strong> {auction.beneficiary}</p>
+  <p>
+    <strong>highest bid</strong>
+    {ethers.formatEther(auction.highestBid)} ETH
+  </p>
 </div>
 
 <style>

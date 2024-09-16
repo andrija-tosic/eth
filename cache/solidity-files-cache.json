@@ -2,8 +2,8 @@
   "_format": "hh-sol-cache-2",
   "files": {
     "/Users/andrija/personal projects/eth/contracts/Auction.sol": {
-      "lastModificationDate": 1725206453279,
-      "contentHash": "ad3b44b43716f6ca1b89dee674542d62",
+      "lastModificationDate": 1725541922898,
+      "contentHash": "1dd2cdaf1d7e946211d49377b5de6aeb",
       "sourceName": "contracts/Auction.sol",
       "solcConfig": {
         "version": "0.8.4",
@@ -37,8 +37,8 @@
       ]
     },
     "/Users/andrija/personal projects/eth/contracts/AuctionFactory.sol": {
-      "lastModificationDate": 1721994008933,
-      "contentHash": "0c002297fe6cf1fd47871152cb8cbfb9",
+      "lastModificationDate": 1725520463752,
+      "contentHash": "89f44e288e39f66b0a498910c663d86b",
       "sourceName": "contracts/AuctionFactory.sol",
       "solcConfig": {
         "version": "0.8.4",

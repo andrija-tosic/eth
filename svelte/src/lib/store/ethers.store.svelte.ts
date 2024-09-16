@@ -1,6 +1,7 @@
-import Web3 from "web3";
+import { ethers } from "ethers";
 
-class Web3Store {
+class EthersStore {
+  provider = $state<ethers.BrowserProvider>()!;
   account = $state<string>()!;
   balance = $state<bigint>()!;
 
@@ -12,39 +13,33 @@ class Web3Store {
   // }
 
   async updateBalance() {
-    this.balance = await window.web3.eth.getBalance(this.account);
+    this.balance = await this.provider.getBalance(this.account);
   }
 
   static async init() {
     if (!window.ethereum) throw new Error("Ethereum not available in browser");
 
-    const store = new Web3Store();
-    window.web3 = new Web3(window.ethereum);
-
-    window.web3.handleRevert = true;
-    window.web3.eth.handleRevert = true;
+    const store = new EthersStore();
+    store.provider = new ethers.BrowserProvider(window.ethereum);
 
     window.ethereum
       .request({ method: "eth_chainId" })
       .then((c) => console.log({ chainId: parseInt(String(c), 16) }));
 
-    // WOW.
-    // window.ethereum.removeAllListeners();
-
-    // window.ethereum.off("accountsChanged", store.#handleAccountsChanged);
     window.ethereum.on("accountsChanged", async (accounts) => {
-      web3Store.account = (accounts as string[])[0];
-      web3Store.balance = await window.web3.eth.getBalance(web3Store.account!);
+      store.account = (accounts as string[])[0];
+
+      store.balance = await store.provider.getBalance(store.account!);
     });
 
     const accounts = await window.ethereum!.request<string[]>({
       method: "eth_requestAccounts",
     });
     store.account = accounts![0]!;
-    store.balance = await window.web3.eth.getBalance(store.account!);
+    store.balance = await store.provider.getBalance(store.account!);
 
     return store;
   }
 }
 
-export const web3Store = await Web3Store.init();
+export const ethersStore = await EthersStore.init();

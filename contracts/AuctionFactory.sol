@@ -1,18 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity >=0.8.4;
-import './Auction.sol';
+import "./Auction.sol";
 
 contract AuctionFactory {
     Auction[] public auctions;
 
-    function createAuction(uint biddingTime) public returns (Auction) {
-        Auction newAuction = (new Auction(biddingTime, payable(msg.sender)));
+    event AuctionCreated(Auction auction);
+
+    function createAuction(
+        AuctionStruct calldata auction
+    ) public returns (Auction) {
+        Auction newAuction = (new Auction(auction, payable(msg.sender)));
         auctions.push(newAuction);
         emit AuctionCreated(newAuction);
         return newAuction;
     }
-
-    event AuctionCreated(Auction auction);
 
     function getActiveAuctions() public view returns (Auction[] memory) {
         uint count = 0;
@@ -51,11 +53,12 @@ contract AuctionFactory {
             }
         }
 
-        return finished;  
-          }
-    
+        return finished;
+    }
 
-    function getBeneficiarysRatings(address beneficiary) public view returns (uint[] memory)  {
+    function getBeneficiarysRatings(
+        address beneficiary
+    ) public view returns (uint[] memory) {
         uint count = 0;
         for (uint i = 0; i < auctions.length; i++) {
             if (auctions[i].beneficiary() == beneficiary) {

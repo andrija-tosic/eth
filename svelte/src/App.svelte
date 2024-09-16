@@ -1,185 +1,166 @@
 <script lang="ts">
-  import { web3Store } from "./lib/store/web3.store.svelte";
+  import { ethersStore } from "./lib/store/ethers.store.svelte";
   import { formatTime } from "./lib/util";
-  import { auctionStore } from "./lib/store/auctions.store.svelte";
   import AuctionCard from "./components/AuctionCard.svelte";
   import Header from "./components/Header.svelte";
+  import { ethers } from "ethers";
+  import { auctionStore } from "./lib/store/auctions.store.svelte";
+  
+  const d = new Date();
 
   let selectedRating = $state(0);
   let bidAmount = $state<number>()!;
-  let biddingTime = $state<number>()!;
+  let endTime = $state<string>(new Date(d.getTime() + (-d.getTimezoneOffset() * 60 + 120) * 1000).toISOString().slice(0, -5))!;
+  let item = $state<string>('item')!;
+  let description = $state<string>('desc')!;
   let currentTimeMillis = $state(Date.now());
+
+  let showDialog = $state(false);
+  let auctionTypeTab = $state<'active' | 'finished'>('active');
+  let selectedAuctions = $derived(auctionTypeTab === 'active' ? auctionStore.activeAuctions : auctionStore.finishedAuctions)
 
   $effect(() => {
     const interval = setInterval(() => {
       currentTimeMillis = Date.now();
     }, 1000);
 
-    console.log(auctionStore.auctions)
-
     return () => clearInterval(interval);
-
   });
 
-  const rateAuction = async () => {
-    if (web3Store && auctionStore.selectedAuction) {
+
+  const createAuction = async () => {
       try {
-        const auctionContract = auctionStore.selectedAuction.contract;
-
-        console.log('Rating auction...')
-        await auctionContract.methods
-          .rate(selectedRating)
-          .send({ from: web3Store.account });
-
-        console.log("Rating submitted!");
-        auctionStore.selectedAuction.beneficiaryRatings = await auctionStore.auctionFactoryContract.methods
-        .getBeneficiarysRatings(auctionStore.selectedAuction.beneficiary)
-        .call();
+        const tx = await auctionStore.factoryContract.createAuction({ item, description, endTime: Math.floor(new Date(endTime).getTime() / 1000) });
+        await tx.wait();
+        showDialog = false;
+        console.log('auction created')
       } catch (error) {
-        console.error("Error submitting rating:", error);
+        alert((error as any).reason);
       }
-    }
   };
 
   const bidOnAuction = async () => {
-    if (web3Store && auctionStore.selectedAuction) {
       try {
-        const auctionContract = auctionStore.selectedAuction.contract;
-
-        console.log('Bidding on auction...')
-          await auctionContract.methods.bid().send({
-          from: web3Store.account,
-          value: window.web3.utils.toWei(bidAmount.toString(), "ether"),
+        const auctionContract = auctionStore.selectedAuction!.contract;
+        const tx = await auctionContract.bid({
+          value: ethers.parseUnits(bidAmount.toString(), 'wei')
         });
-        await web3Store.updateBalance();
-      } catch (error) {
-        console.error("Error placing bid:", error);
-        console.log(JSON.stringify(error,null,2))
-        
-        let errFlat = JSON.stringify(error);
-        let { innerError : { message } } = JSON.parse(errFlat);
+        await tx.wait();
 
-        message = message.replace('execution reverted: ', '');
-        console.log(message);
-      }
-    }
-  };
-
-  const endAuction = async () => {
-    if (web3Store && auctionStore.selectedAuction) {
-      try {
-        const auctionContract = auctionStore.selectedAuction.contract;
-        
-        console.log('Ending auction...')
-        await auctionContract.methods.auctionEnd().send({ from: web3Store.account });
+        await ethersStore.updateBalance();
       } catch (error) {
-        console.error("Error ending auction:", error);
+        alert((error as any).reason);
       }
-    }
   };
 
   const withdrawBid = async () => {
-    if (web3Store && auctionStore.selectedAuction) {
       try {
-        const auctionContract = auctionStore.selectedAuction.contract;
+        const auctionContract = auctionStore.selectedAuction!.contract;
+        const tx = await auctionContract.withdraw();
+        await tx.wait();
 
-        console.log('Withdrawing bid...')
-        await auctionContract.methods
-          .withdraw()
-          .send({ from: web3Store.account });
-
-          auctionStore.selectedAuction.pendingReturn = 0n;
-          await web3Store.updateBalance();
-          console.log("Bid withdrawn, balance should get updated")
+        auctionStore.selectedAuction!.pendingReturn = 0n;
+        await ethersStore.updateBalance();
       } catch (error) {
-        console.error("Error withdrawing bid:", error);
+        alert((error as any).reason);
       }
-    }
   };
 
-  const createNewAuction = async () => {
-    if (web3Store) {
+  const endAuction = async () => {
       try {
-        console.log('Creating auction...')
-        await auctionStore.auctionFactoryContract.methods
-          .createAuction(biddingTime)
-          .send({ from: web3Store.account });
+        const auctionContract = auctionStore.selectedAuction!.contract;
+        const tx = await auctionContract.end();
+        await tx.wait();
       } catch (error) {
-        console.error("Error creating auction:", error);
+        alert((error as any).reason);
       }
-    }
   };
+
+  const rateAuction = async () => {
+      try {
+        const auctionContract = auctionStore.selectedAuction!.contract;
+        const tx = await auctionContract.rate(selectedRating);
+        await tx.wait();
+
+        auctionStore.selectedAuction!.beneficiaryRatings = await auctionStore.factoryContract
+          .getBeneficiarysRatings(auctionStore.selectedAuction!.beneficiary);
+      } catch (error) {
+        alert((error as any).reason);
+      }
+  };
+
 </script>
 
-{#if web3Store}
-  <Header></Header>
-  <main class="flex p-4">
-    <div class="w-2/3 p-4">
-      {#if auctionStore.selectedAuction}
-        <div
-          class="border border-gray-900 text-ellipsis overflow-hidden rounded-lg p-4"
-          style="background-color:#2a247a;"
-        >
-          <h2 class="text-3xl font-bold">
-            auction {auctionStore.selectedAuction.address}
-          </h2>
-          <p>
-            <strong>auction end time:</strong>
-            {new Date(
-              Number(auctionStore.selectedAuction.auctionEndTime) * 1000
-            ).toLocaleString()}
-
-            ({formatTime(
-              Math.abs(
-                Number(auctionStore.selectedAuction.auctionEndTime) * 1000 -
-                  currentTimeMillis
-              )
-            )}
-            {Number(auctionStore.selectedAuction.auctionEndTime) * 1000 -
-              currentTimeMillis >= 1.0
-              ? "left"
-              : "ago"})
-          </p>
-          <p>
-            <strong>beneficiary:</strong>
+<Header></Header>
+<main class="flex p-4">
+  <div class="w-2/3 p-4">
+    {#if auctionStore.selectedAuction && auctionStore.selectedAuction.ended !== (auctionTypeTab === 'active')}
+      <div
+        class="border border-gray-900 text-ellipsis overflow-hidden rounded-lg p-4"
+        style="background-color:#2a247a;"
+      >
+      <div class="flex justify-between align-bottom">
+        <h2 class="text-2xl font-bold">
+          {auctionStore.selectedAuction.item}
+        </h2>
+        <h2 class="flex justify-end">
+          {auctionStore.selectedAuction.address}
+        </h2>
+      </div>
+      <i>
+          {auctionStore.selectedAuction.description}
+      </i>
+      <div class="mb-4">
+        <p>
+          <strong>ends at</strong>
+          {new Date(Number(auctionStore.selectedAuction.endTime) * 1000).toLocaleString()} 
+          ({formatTime(Math.abs(Number(auctionStore.selectedAuction.endTime) * 1000 - currentTimeMillis))} 
+          {Number(auctionStore.selectedAuction.endTime) * 1000 - currentTimeMillis >= 1.0 ? "left" : "ago"})
+        </p>
+        <p>
+          <strong>beneficiary</strong>
+          <span class="{auctionStore.selectedAuction.beneficiary.toLowerCase() === ethersStore.account.toLowerCase() ? 'font-bold': ''}">
             {auctionStore.selectedAuction.beneficiary}
-          </p>
-          <p>
-            <strong>highest bid:</strong>
-            {window.web3.utils.fromWei(
-              auctionStore.selectedAuction.highestBid,
-              "ether"
-            )} ETH
-          </p>
-          <p>
-            <strong>highest bidder:</strong>
-            {auctionStore.selectedAuction.highestBidder}
-          </p>
-          <p>
-            <strong>you can withdraw:</strong>
-            {window.web3.utils.fromWei(
-              auctionStore.selectedAuction.pendingReturn!,
-              "ether"
-            )} ETH
-          </p>
-          <p>
-            <strong>beneficiary's ratings:</strong>
-            {auctionStore.selectedAuction.beneficiaryRatings?.length > 0
-              ? '[' + (auctionStore.selectedAuction.beneficiaryRatings.join(', ')) + ']'
-              : "none"}
-          </p>
-          <p>
-            <strong>average rating:</strong>
-            {
-            auctionStore.selectedAuction.beneficiaryRatings?.length > 0
-            ? parseFloat((Number(auctionStore.selectedAuction.beneficiaryRatings.reduce((acc, e) => acc += e, 0n))
-              / (auctionStore.selectedAuction.beneficiaryRatings.length)
-            ).toFixed(2))
-              : "none"}
-          </p>
+          </span>
+        <p>
+          <strong>highest bid</strong>
+          {auctionStore.selectedAuction.highestBid > 0
+            ? ethers.formatEther(auctionStore.selectedAuction.highestBid) + ` ETH (${auctionStore.selectedAuction.highestBidder})`
+            : 'none'}
+        </p>
+        <p>
+          <strong>bidders</strong>
+          {auctionStore.selectedAuction.bidderCount}
+        </p>
+        <p>
+          <strong>rating</strong>
+          {auctionStore.selectedAuction.beneficiaryRatings?.length > 0
+            ? parseFloat((Number(auctionStore.selectedAuction.beneficiaryRatings.reduce((acc, e) => acc += e, 0n)) 
+            / (auctionStore.selectedAuction.beneficiaryRatings.length)).toFixed(2)) 
+            : "none"}
+        </p>
+      </div>
 
-          <div class="mt-4">
-            <h3 class="text-xl font-bold">rate</h3>
+        {#if auctionStore.selectedAuction.beneficiary.toLowerCase() !== ethersStore.account.toLowerCase()}
+          <div class="mb-4 flex items-center gap-2">
+            <h3 class="text-xl font-bold mr-2">place a bid:</h3>
+            <input
+              type="number"
+              min="0"
+              step="0.001"
+              bind:value={bidAmount}
+              class="border border-gray-900 rounded px-2 py-1"
+              placeholder="bid amount in ETH"
+            />
+            <button
+              class="bg-gray-900 text-white py-2 px-4 rounded"
+              onclick={bidOnAuction}
+            >
+              bid {bidAmount} {bidAmount > 0 ? 'ETH' : ''}
+            </button>
+          </div>w
+
+          <div class="mb-4">
             <div class="flex items-center space-x-2 mt-2">
               {#each Array(5).fill(0) as _, index}
                 <button
@@ -190,122 +171,133 @@
                 </button>
               {/each}
               <button
-              class=" bg-gray-900 text-white py-2 px-4 rounded"
-              onclick={rateAuction}
-            >
-              rate
-            </button>    </div>
-      
-          </div>
-
-          <div class="mt-4 flex items-center">
-            {#if auctionStore.selectedAuction.beneficiary.toLowerCase() !== web3Store.account.toLowerCase()}
-              <h3 class="text-xl font-bold mr-2">place a bid:</h3>
-              <input
-                type="number"
-                min="0"
-                step="0.001"
-                bind:value={bidAmount}
-                class="border border-gray-900 rounded px-2 py-1"
-                placeholder="bid amount in ETH"
-              />
-              <button
-                class="ml-2 bg-gray-900 text-white py-2 px-4 rounded"
-                onclick={bidOnAuction}
+                class=" bg-gray-900 text-white py-2 px-4 rounded"
+                onclick={rateAuction}
               >
-                place bid
+                rate
               </button>
-            {/if}
-            
-          </div>
-
-          <div class="mt-4 flex justify-between">
-            {#if auctionStore.selectedAuction.pendingReturn > 0}
-              <button
-              class="ml-2 bg-gray-900 text-white py-2 px-4 rounded"
-              onclick={withdrawBid}
-              >
-                withdraw bid
-              </button>
-            {/if}
-
-            {#if web3Store.account.toLowerCase() === auctionStore.selectedAuction.beneficiary.toLowerCase()}
-              <button
-                class="ml-2 bg-gray-900 text-white py-2 px-4 rounded"
-                onclick={endAuction}
-              >
-              end auction
-              </button>
-            {/if}
-          </div>
+            </div>
         </div>
-        {:else}
-        <h2>create an auction.
-        </h2>
-      {/if}
-    </div>
+        {/if}
 
-    <div class="w-1/3">
-      <div class="mb-4">
-        <h2 class="text-2xl font-bold">create new auction</h2>
-        <div class="flex items-center">
-          <input
-            type="number"
-            min="0"
-            bind:value={biddingTime}
-            class="rounded px-2 py-1"
-            placeholder="bidding time (secs)"
-          />
+        <div class="flex justify-between">
+          {#if auctionStore.selectedAuction.pendingReturn > 0}
+            <p>
+              <strong>you can withdraw</strong>
+              {ethers.formatEther(auctionStore.selectedAuction.pendingReturn!)} ETH
+            </p>
+            <button
+              class="bg-gray-900 text-white py-2 px-4 rounded"
+              onclick={withdrawBid}
+            >
+              withdraw bid
+            </button>
+          {/if}
+
+          {#if !auctionStore.selectedAuction.ended && ethersStore.account.toLowerCase() === auctionStore.selectedAuction.beneficiary.toLowerCase()}
+            <button
+              class="bg-gray-900 text-white py-2 px-4 rounded"
+              onclick={endAuction}
+            >
+              end auction
+            </button>
+          {/if}
+        </div>
+      </div>
+    {/if}
+  </div>
+
+  <div class="w-1/3 p-4">
+    <div class="mb-4 flex justify-end">
+      <button
+        class="bg-gray-900 text-white py-2 px-4 rounded"
+        onclick={() => (showDialog = true)}
+      >
+        new auction
+      </button>
+    </div>
+        <div class="flex mb-4">
           <button
-            class="ml-2 bg-gray-900 text-white py-2 px-4 rounded"
-            onclick={createNewAuction}
+            class="w-1/2 py-2 px-4 border border-r-0 rounded-l-lg" style="background-color:{auctionTypeTab === 'active' ? 'var(--accent)' : ''}"
+            onclick={() => (auctionTypeTab = 'active')}
           >
-            create auction
+            active
+          </button>
+          <button
+            class="w-1/2 py-2 px-4 border rounded-r-lg" style="background-color:{auctionTypeTab === 'finished' ? 'var(--accent)' : ''}"
+            onclick={() => (auctionTypeTab = 'finished')}
+          >
+            finished
           </button>
         </div>
+    
+          {#if selectedAuctions.length}
+          <div class="p-2 rounded">
+            <div class="grid grid-cols-1 gap-4">
+              {#each selectedAuctions as auctions (auctions.address)}
+                <AuctionCard
+                  auction={auctions}
+                  isSelected={auctionStore.selectedAuction?.address.toLowerCase() === auctions.address.toLowerCase()}
+                  on:click={() => {
+                    auctionStore.selectedAuctionAddress = auctions.address;
+                  }}
+                ></AuctionCard>
+              {/each}
+            </div>
+          </div>
+          {/if}
+    </div>
+</main>
+
+{#if showDialog}
+  <div class="fixed inset-0 bg-gray-800 bg-opacity-75 flex justify-center items-center">
+    <div class="rounded-lg p-6 w-full max-w-md" style="background-color: var(--bg)">
+      <h2 class="text-2xl font-bold mb-4">start a new auction</h2>
+      <div class="mb-4">
+        <i class="block">item name</i>
+        <input
+        name="item"
+          type="text"
+          bind:value={item}
+          class="w-full border border-gray-900 rounded px-3 py-2"
+          placeholder="Item name"
+        />
       </div>
 
       <div class="mb-4">
-        {#if auctionStore.activeAuctions.length}
-        <h2>active auctions</h2>
-      {/if}
-        <div class="grid grid-cols-1 gap-4">
-          {#each auctionStore.activeAuctions as active (active.address)}
-            <AuctionCard
-              auction={active}
-              isSelected={auctionStore.selectedAuction?.address.toLowerCase() ===
-                active.address.toLowerCase()}
-              on:click={() => {
-                auctionStore.selectedAuctionAddress = active.address;
-              }}
-            ></AuctionCard>
-          {/each}
-        </div>
+        <i class="block">description</i>
+        <textarea
+          name="description"
+          bind:value={description}
+          class="w-full border border-gray-900 rounded px-3 py-2"
+          placeholder="Description"
+        ></textarea>
       </div>
 
-      {#if auctionStore.activeAuctions.length && auctionStore.finishedAuctions.length}
-        <hr class="mt-4 mb-4" />
-      {/if}
+      <div class="mb-4">
+        <i class="block">end time</i>
+        <input
+          name="endtime"
+          type="datetime-local"
+          bind:value={endTime}
+          class="w-full border border-gray-900 rounded px-3 py-2"
+        />
+      </div>
 
-      <div>
-      {#if auctionStore.finishedAuctions.length}
-        <h2>finished auctions</h2>
-      {/if}
-        <div class="grid grid-cols-1 gap-4">
-          {#each auctionStore.finishedAuctions as finished (finished.address)}
-            <AuctionCard
-              auction={finished}
-              isSelected={auctionStore.selectedAuction?.address.toLowerCase() ===
-                finished.address.toLowerCase()}
-              on:click={() => {
-                auctionStore.selectedAuctionAddress = finished.address;
-              }}
-            ></AuctionCard>
-          {/each}
-        </div>
+      <div class="flex justify-end">
+        <button
+        class="text-white py-2 px-4 rounded"
+        onclick={() => (showDialog = false)}
+      >
+        cancel
+      </button>
+        <button
+          class="bg-gray-900 text-white py-2 px-4 rounded"
+          onclick={createAuction}
+        >
+          create
+        </button>
       </div>
     </div>
-  </main>
-{:else}
-  <div class="text-red-500 text-center mt-4">window.ethereum not enabled.</div>
+  </div>
 {/if}

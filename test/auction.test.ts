@@ -1,51 +1,36 @@
 import "@nomicfoundation/hardhat-chai-matchers";
 import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { expect } from "chai";
-import hardhat from "hardhat";
-import AuctionFactory from "../artifacts/contracts/AuctionFactory.sol/AuctionFactory.json";
-import Auction from "../artifacts/contracts/Auction.sol/Auction.json";
-import { HardhatRuntimeEnvironment } from "hardhat/types";
-import Web3 from "web3";
+import hre from "hardhat";
 
-const hre = hardhat as unknown as HardhatRuntimeEnvironment & { web3: Web3 };
+const ONE_HOUR_IN_SECS = 120;
 
 describe("AuctionFactory", function () {
   async function deployAuctionFactoryFixture() {
-    const ONE_HOUR_IN_SECS = 60 * 60;
-    const [deployer, beneficiary, bidder1, bidder2] =
-      await hre.web3.eth.getAccounts();
+    const [beneficiary, bidder1, bidder2] = await hre.ethers.getSigners();
 
-    const auctionFactoryContract = new hre.web3.eth.Contract(
-      AuctionFactory.abi
+    const auctionFactory = await hre.ethers.deployContract("AuctionFactory");
+    const auctionFactoryAddress = await auctionFactory.getAddress();
+
+    const tx = await auctionFactory.createAuction({
+      item: "Bidding item",
+      description: "Desc",
+      endTime: Math.floor(new Date().getTime() / 1000) + ONE_HOUR_IN_SECS,
+    });
+    const receipt = await tx.wait();
+
+    const AuctionCreatedEvent = receipt?.logs.find(
+      (log) => log.address === auctionFactoryAddress
     );
-    auctionFactoryContract.handleRevert = true;
 
-    const rawContract = auctionFactoryContract.deploy({
-      data: AuctionFactory.bytecode,
-    });
-
-    const estimateGas = await rawContract.estimateGas({
-      from: deployer,
-    });
-
-    const auctionFactory = await rawContract.send({
-      from: deployer,
-      gas: estimateGas.toString(),
-      gasPrice: "10000000000",
-    });
-
-    const tx = await auctionFactory.methods
-      .createAuction(ONE_HOUR_IN_SECS)
-      .send({ from: beneficiary });
-
-    const auctionAddress = tx.events!.AuctionCreated.returnValues.auction;
-
-    const auction = new hre.web3.eth.Contract(Auction.abi, auctionAddress!);
+    const auction = await hre.ethers.getContractAt(
+      "Auction",
+      (AuctionCreatedEvent as any).args.auction!
+    );
 
     return {
       auctionFactory,
       auction,
-      deployer,
       beneficiary,
       bidder1,
       bidder2,
@@ -59,11 +44,11 @@ describe("AuctionFactory", function () {
         deployAuctionFactoryFixture
       );
 
-      const setBeneficiary = await auction.methods.beneficiary().call();
-      const setAuctionEndTime = await auction.methods.auctionEndTime().call();
+      const setBeneficiary = await auction.beneficiary();
+      const setAuctionEndTime = await auction.auctionEndTime();
 
-      expect(setBeneficiary).to.equal(beneficiary);
-      expect(Number(setAuctionEndTime)).to.be.closeTo(auctionEndTime, 10); // Allowing some time deviation
+      expect(setBeneficiary).to.equal(beneficiary.address);
+      expect(Number(setAuctionEndTime)).to.be.closeTo(auctionEndTime, 10);
     });
   });
 
@@ -73,19 +58,23 @@ describe("AuctionFactory", function () {
         deployAuctionFactoryFixture
       );
 
-      await auction.methods.bid().send({ from: bidder1, value: "1000" });
+      await auction
+        .connect(bidder1)
+        .bid({ value: hre.ethers.parseEther("1.0") });
 
-      let highestBidder = await auction.methods.highestBidder().call();
-      let highestBid = await auction.methods.highestBid().call();
-      expect(highestBidder).to.equal(bidder1);
-      expect(highestBid).to.equal("1000");
+      let highestBidder = await auction.highestBidder();
+      let highestBid = await auction.highestBid();
+      expect(highestBidder).to.equal(bidder1.address);
+      expect(highestBid).to.equal(hre.ethers.parseEther("1.0"));
 
-      await auction.methods.bid().send({ from: bidder2, value: "2000" });
+      await auction
+        .connect(bidder2)
+        .bid({ value: hre.ethers.parseEther("2.0") });
 
-      highestBidder = await auction.methods.highestBidder().call();
-      highestBid = await auction.methods.highestBid().call();
-      expect(highestBidder).to.equal(bidder2);
-      expect(highestBid).to.equal("2000");
+      highestBidder = await auction.highestBidder();
+      highestBid = await auction.highestBid();
+      expect(highestBidder).to.equal(bidder2.address);
+      expect(highestBid).to.equal(hre.ethers.parseEther("2.0"));
     });
 
     it("Should revert if bid is not higher than the current highest bid", async function () {
@@ -93,14 +82,13 @@ describe("AuctionFactory", function () {
         deployAuctionFactoryFixture
       );
 
-      await auction.methods.bid().send({ from: bidder1, value: "1000" });
+      await auction
+        .connect(bidder1)
+        .bid({ value: hre.ethers.parseEther("1.0") });
 
-      try {
-        await auction.methods.bid().send({ from: bidder2, value: "500" });
-        // expect.fail("Expected revert not received");
-      } catch (error: any) {
-        expect(error.cause.message).to.include("Bid not high enough.");
-      }
+      await expect(
+        auction.connect(bidder2).bid({ value: hre.ethers.parseEther("0.5") })
+      ).to.be.revertedWith("Bid not high enough");
     });
 
     it("Should revert if auction has ended", async function () {
@@ -110,12 +98,9 @@ describe("AuctionFactory", function () {
 
       await time.increaseTo(auctionEndTime + 1);
 
-      try {
-        await auction.methods.bid().send({ from: bidder1, value: "1000" });
-        expect.fail("Expected revert not received");
-      } catch (error: any) {
-        expect(error.cause.message).to.include("Auction already ended.");
-      }
+      await expect(
+        auction.connect(bidder1).bid({ value: hre.ethers.parseEther("1.0") })
+      ).to.be.revertedWith("Auction already ended");
     });
   });
 
@@ -125,18 +110,21 @@ describe("AuctionFactory", function () {
         deployAuctionFactoryFixture
       );
 
-      await auction.methods
-        .bid()
-        .send({ from: bidder1, value: "100000000000000000" });
-      await auction.methods
-        .bid()
-        .send({ from: bidder2, value: "200000000000000000" });
+      await auction
+        .connect(bidder1)
+        .bid({ value: hre.ethers.parseEther("1.0") });
+      await auction
+        .connect(bidder2)
+        .bid({ value: hre.ethers.parseEther("2.0") });
 
-      const initialBalance = await hre.web3.eth.getBalance(bidder1);
+      const initialBalance = await hre.ethers.provider.getBalance(
+        bidder1.address
+      );
 
-      await auction.methods.withdraw().send({ from: bidder1 });
+      const withdrawTx = await auction.connect(bidder1).withdraw();
+      await withdrawTx.wait();
 
-      const finalBalance = await hre.web3.eth.getBalance(bidder1);
+      const finalBalance = await hre.ethers.provider.getBalance(bidder1);
 
       expect(finalBalance).to.be.gt(initialBalance);
     });
@@ -147,21 +135,22 @@ describe("AuctionFactory", function () {
       const { auction, beneficiary, bidder1, auctionEndTime } =
         await loadFixture(deployAuctionFactoryFixture);
 
-      const startingBalance = await hre.web3.eth.getBalance(beneficiary);
+      const startingBalance = await hre.ethers.provider.getBalance(beneficiary);
 
-      await auction.methods
-        .bid()
-        .send({ from: bidder1, value: "1000000000000000000" });
+      await auction
+        .connect(bidder1)
+        .bid({ value: hre.ethers.parseEther("1.0") });
 
       await time.increaseTo(auctionEndTime + 1);
 
-      await auction.methods.auctionEnd().send({ from: beneficiary });
+      const endTx = await auction.connect(beneficiary).end();
+      await endTx.wait();
 
-      const ended = await auction.methods.ended().call();
+      const ended = await auction.ended();
       expect(ended).to.be.true;
 
-      const endingBalance = await hre.web3.eth.getBalance(beneficiary);
-      expect(endingBalance).to.be.gt(startingBalance); // Ensure beneficiary received funds
+      const endingBalance = await hre.ethers.provider.getBalance(beneficiary);
+      expect(endingBalance).to.be.gt(startingBalance);
     });
 
     it("Should revert if non-beneficiary tries to end the auction", async function () {
@@ -169,18 +158,15 @@ describe("AuctionFactory", function () {
         deployAuctionFactoryFixture
       );
 
-      await auction.methods.bid().send({ from: bidder1, value: "1000" });
+      await auction
+        .connect(bidder1)
+        .bid({ value: hre.ethers.parseEther("1.0") });
 
       await time.increaseTo(auctionEndTime + 1);
 
-      try {
-        await auction.methods.auctionEnd().send({ from: bidder2 });
-        expect.fail("Expected revert not received");
-      } catch (error: any) {
-        expect(error.cause.message).to.include(
-          "Only beneficiary can end the auction."
-        );
-      }
+      await expect(auction.connect(bidder2).end()).to.be.revertedWith(
+        "Only beneficiary can end the auction"
+      );
     });
   });
 
@@ -190,16 +176,13 @@ describe("AuctionFactory", function () {
         deployAuctionFactoryFixture
       );
 
-      await auction.methods.bid().send({ from: bidder1, value: "1000" });
+      await auction
+        .connect(bidder1)
+        .bid({ value: hre.ethers.parseEther("1.0") });
 
-      try {
-        await auction.methods.rate(5).send({ from: bidder1 });
-        expect.fail("Expected revert not received");
-      } catch (error: any) {
-        expect(error.cause.message).to.include(
-          "You can rate only auctions that have successfully ended."
-        );
-      }
+      await expect(auction.connect(bidder1).rate(5)).to.be.revertedWith(
+        "You can rate only auctions that have successfully ended"
+      );
     });
 
     it("Should revert if non-bidder tries to rate", async function () {
@@ -208,16 +191,11 @@ describe("AuctionFactory", function () {
       );
 
       await time.increaseTo(auctionEndTime + 1);
-      await auction.methods.auctionEnd().send({ from: beneficiary });
+      await auction.connect(beneficiary).end();
 
-      try {
-        await auction.methods.rate(5).send({ from: beneficiary });
-        expect.fail("Expected revert not received");
-      } catch (error: any) {
-        expect(error.cause.message).to.include(
-          "You can rate only if you have previously bid."
-        );
-      }
+      await expect(auction.connect(beneficiary).rate(5)).to.be.revertedWith(
+        "You can rate only if you have previously bid"
+      );
     });
 
     it("Should allow valid ratings from eligible users", async function () {
@@ -230,17 +208,23 @@ describe("AuctionFactory", function () {
         auctionEndTime,
       } = await loadFixture(deployAuctionFactoryFixture);
 
-      await auction.methods.bid().send({ from: bidder1, value: "1000" });
-      await auction.methods.bid().send({ from: bidder2, value: "2000" });
+      await auction
+        .connect(bidder1)
+        .bid({ value: hre.ethers.parseEther("1.0") });
+      await auction
+        .connect(bidder2)
+        .bid({ value: hre.ethers.parseEther("2.0") });
+
       await time.increaseTo(auctionEndTime + 1);
-      await auction.methods.auctionEnd().send({ from: beneficiary });
+      await auction.connect(beneficiary).end();
 
-      await auction.methods.rate(5).send({ from: bidder1 });
-      await auction.methods.rate(4).send({ from: bidder2 });
+      await auction.connect(bidder1).rate(5);
+      await auction.connect(bidder2).rate(4);
 
-      const ratings = await auctionFactory.methods
-        .getBeneficiarysRatings(beneficiary)
-        .call();
+      const ratings = await auctionFactory.getBeneficiarysRatings(
+        beneficiary.address
+      );
+
       expect(ratings).to.eql([5n, 4n]);
     });
 
@@ -248,16 +232,15 @@ describe("AuctionFactory", function () {
       const { auction, beneficiary, bidder1, auctionEndTime } =
         await loadFixture(deployAuctionFactoryFixture);
 
-      await auction.methods.bid().send({ from: bidder1, value: "1000" });
+      await auction
+        .connect(bidder1)
+        .bid({ value: hre.ethers.parseEther("1.0") });
       await time.increaseTo(auctionEndTime + 1);
-      await auction.methods.auctionEnd().send({ from: beneficiary });
+      await auction.connect(beneficiary).end();
 
-      try {
-        await auction.methods.rate(6).send({ from: bidder1 });
-        expect.fail("Expected revert not received");
-      } catch (error: any) {
-        expect(error.cause.message).to.include("Rating must be from 1 to 5.");
-      }
+      await expect(auction.connect(bidder1).rate(6)).to.be.revertedWith(
+        "Rating must be from 1 to 5"
+      );
     });
   });
 });

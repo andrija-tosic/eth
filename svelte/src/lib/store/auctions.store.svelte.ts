@@ -1,90 +1,94 @@
 import type { AuctionModel } from "../model/auction.model";
-import AuctionFactory from "../../../../artifacts/contracts/AuctionFactory.sol/AuctionFactory.json";
-import Auction from "../../../../artifacts/contracts/Auction.sol/Auction.json";
-import type { Contract, ContractAbi } from "web3";
-import { web3Store } from "./web3.store.svelte";
+import AuctionFactoryAbi from "../../../../artifacts/contracts/AuctionFactory.sol/AuctionFactory.json";
+import AuctionAbi from "../../../../artifacts/contracts/Auction.sol/Auction.json";
+import { Contract } from "ethers";
+import { ethersStore } from "./ethers.store.svelte";
 import { SvelteMap } from "svelte/reactivity";
+import type { Auction, AuctionFactory } from "../../../../typechain-types";
+import type { BaseContract } from "ethers";
 
 class AuctionStore {
   auctions = $state(new SvelteMap<string, AuctionModel>());
 
-  auctionFactoryContract!: Contract<ContractAbi>;
+  factoryContract!: AuctionFactory;
 
   activeAuctions = $derived(
     [...this.auctions.values()]
       .filter((e) => !e.ended)
-      .sort((e1, e2) => Number(e2.auctionEndTime) - Number(e1.auctionEndTime))
+      .sort((e1, e2) => Number(e2.endTime) - Number(e1.endTime))
   );
 
   finishedAuctions = $derived(
     [...this.auctions.values()]
       .filter((e) => e.ended)
-      .sort((e1, e2) => Number(e2.auctionEndTime) - Number(e1.auctionEndTime))
+      .sort((e1, e2) => Number(e2.endTime) - Number(e1.endTime))
   );
 
   selectedAuctionAddress = $state<string>()!;
   selectedAuction = $derived(this.auctions.get(this.selectedAuctionAddress));
 
-  private constructor() {}
+  private constructor() {
+    // this should be solved with $effect.
+
+    window.ethereum?.on("accountsChanged", async (accounts) => {
+      auctionStore.auctions.forEach(auctionStore.#removeEventListeners);
+      this.#getAuctions();
+
+      this.auctions.forEach(async (a) => {
+        a.pendingReturn = await a.contract.getPendingReturnForBidder(ethersStore.account);
+      });
+    });
+  }
 
   static async init() {
     const auctionStore = new AuctionStore();
-    auctionStore.auctionFactoryContract = new window.web3.eth.Contract(
-      AuctionFactory.abi,
-      import.meta.env.VITE_AUCTION_FACTORY_ADDR
+
+    auctionStore.factoryContract = new Contract(
+      import.meta.env.VITE_AUCTION_FACTORY_ADDR,
+      AuctionFactoryAbi.abi,
+      await ethersStore.provider.getSigner()
+    ) as BaseContract as AuctionFactory;
+
+    auctionStore.factoryContract.on(
+      auctionStore.factoryContract.getEvent("AuctionCreated"),
+      async (auctionAddress) => {
+        console.log("Auction created");
+
+        const model = $state(await auctionStore.initAuction(auctionAddress));
+        auctionStore.auctions.set(model.address, model);
+        auctionStore.#setupEventListeners(model);
+        auctionStore.selectedAuctionAddress = auctionAddress;
+      }
     );
 
-    auctionStore.auctionFactoryContract.events.AuctionCreated().on("data", async (d) => {
-      const { returnValues } = d;
-      const { auction } = returnValues;
+    await auctionStore.#getAuctions();
 
-      console.log("Auction created");
+    auctionStore.selectedAuctionAddress =
+      auctionStore.activeAuctions[0]?.address ?? auctionStore.finishedAuctions[0]?.address;
 
-      const model = $state(await auctionStore.createAuction(auction as string));
-      auctionStore.auctions.set(model.address, model);
-      auctionStore.#setupAuctionEventListeners(model);
-      auctionStore.selectedAuctionAddress = auction as string;
+    window.ethereum?.on("accountsChanged", async (accounts) => {
+      auctionStore.auctions.forEach(async (a) => {
+        a.pendingReturn = await a.contract.getPendingReturnForBidder(ethersStore.account);
+      });
     });
-
-    const activeAuctions: string[] = await auctionStore.auctionFactoryContract.methods
-      .getActiveAuctions()
-      .call();
-
-    const finishedAuctions: string[] = await auctionStore.auctionFactoryContract.methods
-      .getFinishedAuctions()
-      .call();
-
-    const auctions = [...activeAuctions, ...finishedAuctions];
-
-    for (const a of auctions) {
-      const model = $state(await auctionStore.createAuction(a));
-      auctionStore.#setupAuctionEventListeners(model);
-      auctionStore.auctions.set(model.address, model);
-    }
 
     return auctionStore;
   }
 
-  #setupAuctionEventListeners(model: AuctionModel) {
+  #setupEventListeners(model: AuctionModel) {
     if (!model.ended) {
-      model.contract.events.AuctionEnded().on("data", async (d) => {
-        const { returnValues } = d;
-        const { winner, amount } = returnValues;
-
+      model.contract.on(model.contract.getEvent("AuctionEnded"), async (winner, amount) => {
         console.log("Auction ended", { model, winner, amount });
         model.ended = true;
 
-        if (web3Store.account.toLowerCase() === model.beneficiary.toLowerCase()) {
+        if (ethersStore.account.toLowerCase() === model.beneficiary.toLowerCase()) {
           console.log("Balance should get updated");
-          await web3Store.updateBalance();
+          await ethersStore.updateBalance();
         }
       });
     }
 
-    model.contract.events.HighestBidIncreased().on("data", (d) => {
-      const { returnValues } = d;
-      const { bidder, amount } = returnValues;
-
+    model.contract.on(model.contract.getEvent("HighestBidIncreased"), (bidder, amount) => {
       console.log("Highest bid increased", { model, bidder, amount });
       model.highestBid = amount as bigint;
       model.highestBidder = bidder as string;
@@ -92,34 +96,61 @@ class AuctionStore {
       this.auctions = this.auctions;
     });
 
-    model.contract.events.PendingReturnIncreased().on("data", (d) => {
-      const { returnValues } = d;
-      const { bidder, amount } = returnValues;
-
-      if (web3Store.account.toLowerCase() === (bidder as string).toLowerCase()) {
-        console.log("Pending return increased", { model, bidder, amount });
+    model.contract.on(model.contract.getEvent("HighestBidLost"), (bidder, amount) => {
+      if (ethersStore.account.toLowerCase() === (bidder as string).toLowerCase()) {
+        console.log("Highest bid lost", { model, bidder, amount });
 
         model.pendingReturn = amount as bigint;
       }
     });
   }
 
-  async createAuction(address: string) {
-    const contract = new window.web3.eth.Contract(Auction.abi, address);
+  #removeEventListeners(model: AuctionModel) {
+    model.contract.off("AuctionEnded");
+    model.contract.off("HighestBidIncreased");
+    model.contract.off("HighestBidLost");
+  }
 
-    const beneficiary: string = await contract.methods.beneficiary().call();
+  async #getAuctions() {
+    let activeAuctions: string[] = [];
+    let finishedAuctions: string[] = [];
+
+    try {
+      activeAuctions = await this.factoryContract.getActiveAuctions();
+    } catch (error) {}
+    try {
+      finishedAuctions = await this.factoryContract.getFinishedAuctions();
+    } catch (error) {}
+
+    const auctions = [...activeAuctions, ...finishedAuctions];
+    for (const a of auctions) {
+      const model = $state(await this.initAuction(a));
+      this.#setupEventListeners(model);
+      this.auctions.set(model.address, model);
+    }
+  }
+
+  async initAuction(address: string) {
+    const contract = new Contract(
+      address,
+      AuctionAbi.abi,
+      await ethersStore.provider.getSigner()
+    ) as BaseContract as Auction;
+
+    const beneficiary: string = await contract.beneficiary();
 
     const model: AuctionModel = {
       address,
-      auctionEndTime: await contract.methods.auctionEndTime().call(),
+      item: await contract.item(),
+      description: await contract.description(),
+      endTime: await contract.auctionEndTime(),
       beneficiary,
-      ended: await contract.methods.ended().call(),
-      highestBid: await contract.methods.highestBid().call(),
-      highestBidder: await contract.methods.highestBidder().call(),
-      beneficiaryRatings: await this.auctionFactoryContract.methods
-        .getBeneficiarysRatings(beneficiary)
-        .call(),
-      pendingReturn: await contract.methods.getPendingReturnForBidder(web3Store.account).call(),
+      ended: await contract.ended(),
+      highestBid: await contract.highestBid(),
+      highestBidder: await contract.highestBidder(),
+      bidderCount: await contract.bidderCount(),
+      beneficiaryRatings: await this.factoryContract.getBeneficiarysRatings(beneficiary),
+      pendingReturn: await contract.getPendingReturnForBidder(ethersStore.account),
       contract,
     };
 
