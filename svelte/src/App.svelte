@@ -43,12 +43,13 @@
       try {
         const auctionContract = auctionStore.selectedAuction!.contract;
         const tx = await auctionContract.bid({
-          value: ethers.parseUnits(bidAmount.toString(), 'wei')
+          value: ethers.parseUnits(bidAmount.toString(), 'ether')
         });
         await tx.wait();
 
         await ethersStore.updateBalance();
       } catch (error) {
+        console.error(error)
         alert((error as any).reason);
       }
   };
@@ -158,8 +159,7 @@
             >
               bid {bidAmount} {bidAmount > 0 ? 'ETH' : ''}
             </button>
-          </div>w
-
+          </div>
           <div class="mb-4">
             <div class="flex items-center space-x-2 mt-2">
               {#each Array(5).fill(0) as _, index}
