@@ -1,5 +1,5 @@
 import "@nomicfoundation/hardhat-ignition";
-import { HardhatUserConfig } from "hardhat/config";
+import type { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-web3-v4";
 import "@typechain/hardhat";
 import "@nomicfoundation/hardhat-ethers";

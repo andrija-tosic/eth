@@ -1,27 +1,24 @@
 <svelte:options customElement="auction-card" runes={true} />
 
 <script lang="ts">
-  import { createEventDispatcher } from "svelte";
   import type { AuctionModel } from "../lib/model/auction.model";
   import { ethers } from "ethers";
-
-  const dispatch = createEventDispatcher(); // until "$$props() is not defined" error gets fixed
 
   let {
     auction,
     isSelected,
+    onclick,
   }: {
     auction: AuctionModel;
     isSelected: boolean;
+    onclick: () => void;
   } = $props();
 </script>
 
-<!-- svelte-ignore a11y_click_events_have_key_events -->
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div
+<button
   class="border border-gray-300 text-ellipsis overflow-hidden rounded-lg p-4 cursor-pointer"
   class:selected-auction={isSelected}
-  onclick={() => dispatch("click")}
+  onclick={() => onclick()}
 >
   <!-- <p>
     {auction.address}
@@ -42,7 +39,7 @@
     <strong>highest bid</strong>
     {ethers.formatEther(auction.highestBid)} ETH
   </p>
-</div>
+</button>
 
 <style>
   .selected-auction {

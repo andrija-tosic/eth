@@ -238,7 +238,7 @@
                 <AuctionCard
                   auction={auctions}
                   isSelected={auctionStore.selectedAuction?.address.toLowerCase() === auctions.address.toLowerCase()}
-                  on:click={() => {
+                  onclick={() => {
                     auctionStore.selectedAuctionAddress = auctions.address;
                   }}
                 ></AuctionCard>

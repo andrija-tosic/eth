@@ -5,7 +5,6 @@ import { Contract } from "ethers";
 import { ethersStore } from "./ethers.store.svelte";
 import { SvelteMap } from "svelte/reactivity";
 import type { Auction, AuctionFactory } from "../../../../typechain-types";
-import type { BaseContract } from "ethers";
 
 class AuctionStore {
   auctions = $state(new SvelteMap<string, AuctionModel>());
@@ -47,7 +46,7 @@ class AuctionStore {
       import.meta.env.VITE_AUCTION_FACTORY_ADDR,
       AuctionFactoryAbi.abi,
       await ethersStore.provider.getSigner()
-    ) as BaseContract as AuctionFactory;
+    ) as unknown as AuctionFactory;
 
     auctionStore.factoryContract.on(
       auctionStore.factoryContract.getEvent("AuctionCreated"),
@@ -135,7 +134,7 @@ class AuctionStore {
       address,
       AuctionAbi.abi,
       await ethersStore.provider.getSigner()
-    ) as BaseContract as Auction;
+    ) as unknown as Auction;
 
     const beneficiary: string = await contract.beneficiary();
 
