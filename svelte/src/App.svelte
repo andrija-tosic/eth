@@ -8,6 +8,8 @@
   
   const d = new Date();
 
+  let searchQuery = $state<string>('');
+
   let selectedRating = $state(0);
   let bidAmount = $state<number>()!;
   let endTime = $state<string>(new Date(d.getTime() + (-d.getTimezoneOffset() * 60 + 120) * 1000).toISOString().slice(0, -5))!;
@@ -18,6 +20,15 @@
   let showDialog = $state(false);
   let auctionTypeTab = $state<'active' | 'finished'>('active');
   let selectedAuctions = $derived(auctionTypeTab === 'active' ? auctionStore.activeAuctions : auctionStore.finishedAuctions)
+  let filteredAuctions = $derived(
+    selectedAuctions.filter(a => 
+       a.address.toLowerCase().includes(searchQuery.toLowerCase())
+    || a.beneficiary.toLowerCase().includes(searchQuery.toLowerCase())
+    || a.description.toLowerCase().includes(searchQuery.toLowerCase())
+    || a.item.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+);
+
 
   $effect(() => {
     const interval = setInterval(() => {
@@ -230,11 +241,20 @@
             finished
           </button>
         </div>
+
+        <div class="mb-4">
+          <input
+            type="text"
+            bind:value={searchQuery}
+            placeholder="Filter auctions..."
+            class="w-full border border-gray-900 rounded px-3 py-2"
+          />
+        </div>
     
-          {#if selectedAuctions.length}
+          {#if filteredAuctions.length}
           <div class="p-2 rounded">
             <div class="grid grid-cols-1 gap-4">
-              {#each selectedAuctions as auctions (auctions.address)}
+              {#each filteredAuctions as auctions (auctions.address)}
                 <AuctionCard
                   auction={auctions}
                   isSelected={auctionStore.selectedAuction?.address.toLowerCase() === auctions.address.toLowerCase()}
