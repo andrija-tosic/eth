@@ -1,10 +1,11 @@
 import type { AuctionModel } from "../model/auction.model";
 import AuctionFactoryAbi from "../../../../artifacts/contracts/AuctionFactory.sol/AuctionFactory.json";
 import AuctionAbi from "../../../../artifacts/contracts/Auction.sol/Auction.json";
-import { Contract } from "ethers";
+import { Contract, parseUnits } from "ethers";
 import { ethersStore } from "./ethers.store.svelte";
 import { SvelteMap } from "svelte/reactivity";
 import type { Auction, AuctionFactory } from "../../../../typechain-types";
+import Toast from "typescript-toastify";
 
 class AuctionStore {
   auctions = $state(new SvelteMap<string, AuctionModel>());
@@ -51,7 +52,16 @@ class AuctionStore {
     auctionStore.factoryContract.on(
       auctionStore.factoryContract.getEvent("AuctionCreated"),
       async (auctionAddress) => {
-        console.log("Auction created");
+        new Toast({
+          position: "bottom-right",
+          toastMsg: "Auction created",
+          type: "success",
+          canClose: true,
+          showProgress: true,
+
+          pauseOnFocusLoss: true,
+          theme: "dark",
+        });
 
         const model = $state(await auctionStore.initAuction(auctionAddress));
         auctionStore.auctions.set(model.address, model);
@@ -77,8 +87,18 @@ class AuctionStore {
   #setupEventListeners(model: AuctionModel) {
     if (!model.ended) {
       model.contract.on(model.contract.getEvent("AuctionEnded"), async (winner, amount) => {
-        console.log("Auction ended", { model, winner, amount });
         model.ended = true;
+
+        console.log("Auction ended", { model, winner, amount });
+        new Toast({
+          position: "bottom-right",
+          toastMsg: "Auction ended",
+          type: "success",
+          canClose: true,
+          showProgress: true,
+          pauseOnFocusLoss: true,
+          theme: "dark",
+        });
 
         if (ethersStore.account.toLowerCase() === model.beneficiary.toLowerCase()) {
           console.log("Balance should get updated");
@@ -88,16 +108,33 @@ class AuctionStore {
     }
 
     model.contract.on(model.contract.getEvent("HighestBidIncreased"), (bidder, amount) => {
-      console.log("Highest bid increased", { model, bidder, amount });
       model.highestBid = amount as bigint;
       model.highestBidder = bidder as string;
-      console.log({ model });
       this.auctions = this.auctions;
+      console.log("Highest bid increased", { model, bidder, amount });
+      new Toast({
+        position: "bottom-right",
+        toastMsg: `Highest bid increased to ${parseUnits(amount.toString(), "ether")} ETH`,
+        type: "info",
+        canClose: true,
+        showProgress: true,
+        pauseOnFocusLoss: true,
+        theme: "dark",
+      });
     });
 
     model.contract.on(model.contract.getEvent("HighestBidLost"), (bidder, amount) => {
       if (ethersStore.account.toLowerCase() === (bidder as string).toLowerCase()) {
         console.log("Highest bid lost", { model, bidder, amount });
+        new Toast({
+          position: "bottom-right",
+          toastMsg: "Highest bid lost",
+          type: "info",
+          canClose: true,
+          showProgress: true,
+          pauseOnFocusLoss: true,
+          theme: "dark",
+        });
 
         model.pendingReturn = amount as bigint;
       }

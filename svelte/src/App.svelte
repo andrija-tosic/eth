@@ -5,6 +5,7 @@
   import Header from "./components/Header.svelte";
   import { ethers } from "ethers";
   import { auctionStore } from "./lib/store/auctions.store.svelte";
+    import Toast from "typescript-toastify";
   
   const d = new Date();
 
@@ -46,7 +47,15 @@
         showDialog = false;
         console.log('auction created')
       } catch (error) {
-        alert((error as any).reason);
+        new Toast({
+          position: 'bottom-right',
+          toastMsg: (error as any).reason,
+          type: 'error',
+          canClose: true,
+          showProgress: true,
+          pauseOnFocusLoss: true,
+          theme: "dark",
+        });
       }
   };
 
@@ -61,7 +70,15 @@
         await ethersStore.updateBalance();
       } catch (error) {
         console.error(error)
-        alert((error as any).reason);
+        new Toast({
+          position: 'bottom-right',
+          toastMsg: (error as any).reason,
+          type: 'error',
+          canClose: true,
+          showProgress: true,
+          pauseOnFocusLoss: true,
+          theme: "dark",
+        });
       }
   };
 
@@ -73,8 +90,26 @@
 
         auctionStore.selectedAuction!.pendingReturn = 0n;
         await ethersStore.updateBalance();
+
+        new Toast({
+          position: 'bottom-right',
+          toastMsg: 'Bid withdrawn',
+          type: 'info',
+          canClose: true,
+          showProgress: true,
+          pauseOnFocusLoss: true,
+          theme: "dark",
+        });
       } catch (error) {
-        alert((error as any).reason);
+          new Toast({
+            position: 'bottom-right',
+            toastMsg: (error as any).reason,
+            type: 'error',
+            canClose: true,
+            showProgress: true,
+            pauseOnFocusLoss: true,
+            theme: "dark",
+          });
       }
   };
 
@@ -84,8 +119,15 @@
         const tx = await auctionContract.end();
         await tx.wait();
       } catch (error) {
-        alert((error as any).reason);
-      }
+  new Toast({
+          position: 'bottom-right',
+          toastMsg: (error as any).reason,
+          type: 'error',
+          canClose: true,
+          showProgress: true,
+          pauseOnFocusLoss: true,
+          theme: "dark",
+        });      }
   };
 
   const rateAuction = async () => {
@@ -97,8 +139,15 @@
         auctionStore.selectedAuction!.beneficiaryRatings = await auctionStore.factoryContract
           .getBeneficiarysRatings(auctionStore.selectedAuction!.beneficiary);
       } catch (error) {
-        alert((error as any).reason);
-      }
+  new Toast({
+          position: 'bottom-right',
+          toastMsg: (error as any).reason,
+          type: 'error',
+          canClose: true,
+          showProgress: true,
+          pauseOnFocusLoss: true,
+          theme: "dark",
+        });      }
   };
 
 </script>
@@ -222,7 +271,9 @@
     <div class="mb-4 flex justify-end">
       <button
         class="bg-gray-900 text-white py-2 px-4 rounded"
-        onclick={() => (showDialog = true)}
+        onclick={() => {
+          showDialog = true
+        }}
       >
         new auction
       </button>
@@ -242,6 +293,8 @@
           </button>
         </div>
 
+        
+        {#if selectedAuctions.length}
         <div class="mb-4">
           <input
             type="text"
@@ -250,6 +303,7 @@
             class="w-full border border-gray-900 rounded px-3 py-2"
           />
         </div>
+        {/if}
     
           {#if filteredAuctions.length}
           <div class="p-2 rounded">
