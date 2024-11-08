@@ -1,7 +1,7 @@
 import type { AuctionModel } from "../model/auction.model";
 import AuctionFactoryAbi from "../../../../artifacts/contracts/AuctionFactory.sol/AuctionFactory.json";
 import AuctionAbi from "../../../../artifacts/contracts/Auction.sol/Auction.json";
-import { Contract, parseUnits } from "ethers";
+import { Contract, formatEther, parseUnits } from "ethers";
 import { ethersStore } from "./ethers.store.svelte";
 import { SvelteMap } from "svelte/reactivity";
 import type { Auction, AuctionFactory } from "../../../../typechain-types";
@@ -57,8 +57,7 @@ class AuctionStore {
           toastMsg: "Auction created",
           type: "success",
           canClose: true,
-          showProgress: true,
-
+          showProgress: false,
           pauseOnFocusLoss: true,
           theme: "dark",
         });
@@ -95,7 +94,7 @@ class AuctionStore {
           toastMsg: "Auction ended",
           type: "success",
           canClose: true,
-          showProgress: true,
+          showProgress: false,
           pauseOnFocusLoss: true,
           theme: "dark",
         });
@@ -114,11 +113,10 @@ class AuctionStore {
       console.log("Highest bid increased", { model, bidder, amount });
       new Toast({
         position: "bottom-right",
-        toastMsg: `Highest bid increased to ${parseUnits(amount.toString(), "ether")} ETH`,
+        toastMsg: `Highest bid increased to ${formatEther(amount)} ETH`,
         type: "info",
         canClose: true,
-        showProgress: true,
-        pauseOnFocusLoss: true,
+        showProgress: false,
         theme: "dark",
       });
     });
@@ -131,7 +129,7 @@ class AuctionStore {
           toastMsg: "Highest bid lost",
           type: "info",
           canClose: true,
-          showProgress: true,
+          showProgress: false,
           pauseOnFocusLoss: true,
           theme: "dark",
         });

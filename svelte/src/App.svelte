@@ -52,7 +52,7 @@
           toastMsg: (error as any).reason,
           type: 'error',
           canClose: true,
-          showProgress: true,
+          showProgress: false,
           pauseOnFocusLoss: true,
           theme: "dark",
         });
@@ -75,7 +75,7 @@
           toastMsg: (error as any).reason,
           type: 'error',
           canClose: true,
-          showProgress: true,
+          showProgress: false,
           pauseOnFocusLoss: true,
           theme: "dark",
         });
@@ -96,7 +96,7 @@
           toastMsg: 'Bid withdrawn',
           type: 'info',
           canClose: true,
-          showProgress: true,
+          showProgress: false,
           pauseOnFocusLoss: true,
           theme: "dark",
         });
@@ -106,7 +106,7 @@
             toastMsg: (error as any).reason,
             type: 'error',
             canClose: true,
-            showProgress: true,
+            showProgress: false,
             pauseOnFocusLoss: true,
             theme: "dark",
           });
@@ -124,7 +124,7 @@
           toastMsg: (error as any).reason,
           type: 'error',
           canClose: true,
-          showProgress: true,
+          showProgress: false,
           pauseOnFocusLoss: true,
           theme: "dark",
         });      }
@@ -139,15 +139,16 @@
         auctionStore.selectedAuction!.beneficiaryRatings = await auctionStore.factoryContract
           .getBeneficiarysRatings(auctionStore.selectedAuction!.beneficiary);
       } catch (error) {
-  new Toast({
+        new Toast({
           position: 'bottom-right',
           toastMsg: (error as any).reason,
           type: 'error',
           canClose: true,
-          showProgress: true,
+          showProgress: false,
           pauseOnFocusLoss: true,
           theme: "dark",
-        });      }
+        });
+      }
   };
 
 </script>
@@ -202,7 +203,7 @@
         </p>
       </div>
 
-        {#if auctionStore.selectedAuction.beneficiary.toLowerCase() !== ethersStore.account.toLowerCase()}
+        {#if !auctionStore.selectedAuction.ended && auctionStore.selectedAuction.beneficiary.toLowerCase() !== ethersStore.account.toLowerCase()}
           <div class="mb-4 flex items-center gap-2">
             <h3 class="text-xl font-bold mr-2">place a bid:</h3>
             <input
@@ -293,7 +294,6 @@
           </button>
         </div>
 
-        
         {#if selectedAuctions.length}
         <div class="mb-4">
           <input
